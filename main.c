@@ -19,7 +19,7 @@
 #define SERVERIP "127.0.0.1"
 #define BACKLOG 10
 #define MAXUSER 1024
-#define POLLTIMEOUT 5
+#define POLLTIMEOUT 100
 
 struct pollfd *fds = NULL;
 
@@ -118,7 +118,7 @@ int HandleRead(int fd)
     if (err != 0) {
         free(data);
     } else {
-        DoJob(data);
+        ParseJob(fd, data);
     }
 
     return err;
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
             break;
         } else if (ret == 0) {
             /* timeout */
-            printf("poll timeout!");
+            printf("poll timeout!\n");
             continue;
         } else {
             /* fds ready */
@@ -188,6 +188,9 @@ int main(int argc, char *argv[])
     }
 
     /* TODO frees */
+    free(fds);
+
+    return err;
 }
 
 

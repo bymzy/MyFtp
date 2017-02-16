@@ -1,20 +1,17 @@
 CC=gcc
 TARGET=server
-LIB=
+LIB=-pthread
 CFLAGS=-g
-OBJS=${patsubst %.c,%.o,${wildcard *.c}}
+OBJS=${patsubst %.c, %.o,${wildcard *.c}}
 
-${TARGET}: DEPEND ${OBJS} ${DEPENDOBJS}
-	${CC} ${LIB} -o bin/$@ objs/${OBJS}
+${TARGET}: DEPEND ${OBJS}
+	${CC} ${LIB} -o bin/$@ objs/*.o
 
 DEPEND:
 	mkdir -p objs/ bin/
 
 %.o:%.c
 	${CC} ${CFLAGS} -c $< -o objs/$@
-
-output:
-	echo objs/${OBJS}
 
 clean:
 	rm -rf objs/ bin/
