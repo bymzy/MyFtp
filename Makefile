@@ -5,13 +5,12 @@ CFLAGS=-g
 OBJS=${patsubst %.c, %.o,${wildcard *.c}}
 
 ${TARGET}: DEPEND ${OBJS}
-	${CC} ${LIB} -o bin/$@ objs/*.o
+	${CC} ${LIB} -o $@ ${OBJS}
 
 DEPEND:
-	mkdir -p objs/ bin/
 
 %.o:%.c
-	${CC} ${CFLAGS} -c $< -o objs/$@
+	${CC} ${CFLAGS} -c $< -o $@
 
 clean:
-	rm -rf objs/ bin/
+	rm -rf ${OBJS} ${TARGET}

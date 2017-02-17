@@ -1,6 +1,7 @@
 objs/*
 bin/*
 *.o
+core.*
 
 # Object files
 *.o
