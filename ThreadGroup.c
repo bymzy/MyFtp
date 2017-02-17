@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
+
 #include "ThreadGroup.h"
 
 #define ThreadCount 3
@@ -33,6 +35,7 @@ void InitThreads()
 void * ThreadEntry(void *arg)
 {
     struct Job *job = NULL;
+    printf("thread create success, going loop!\n");
     while (1) {
         pthread_mutex_lock(&mutex);
         while (JobCount <= 0 && (threadStatus == 1)) {
@@ -85,6 +88,7 @@ void EnqueJob(struct Job *job)
     }
 
     tail->next = NULL;
+    JobCount++;
     pthread_cond_signal(&cond);
     pthread_mutex_unlock(&mutex);
 }

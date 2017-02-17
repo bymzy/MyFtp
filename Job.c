@@ -21,9 +21,11 @@ void ParseJob(int fd, char *buf)
 
     assert(typelen < 20);
     char reqType[20];
+    bzero(reqType, 20);
     index = readBytes(index, reqType, typelen);
 
-    if (strcmp(reqType, "List") == 0) {
+    printf("req type: %s\n", reqType);
+    if (strcmp(reqType, "list") == 0) {
         DoList(fd, index, buf);
     } else {
         assert(0);
@@ -45,16 +47,16 @@ void ReplyList(int fd, char *data)
 {
     /* TODO this is a test */
     char words[] = "helleo";
-    int len = sizeof(words);
+    int len = strlen(words);
     char *buf = (char *)malloc(4 + len + 4);
     int dataSize = htonl(len + 4);
     len = htonl(len);
+
     memcpy(buf, &dataSize, 4);
     memcpy(buf + 4, &len, 4);
     memcpy(buf + 8, words, sizeof(words));
 
-    SendAll(fd, buf, dataSize + 4);
-
+    SendAll(fd, buf, 4 + 4 + strlen(words));
     free(buf);
 }
 
@@ -92,7 +94,8 @@ void SendAll(int fd, char *buf, int total)
             return;
         }  
 
-        toSend += ret;
+        sent += ret;
+        toSend -= ret;
     }
 }
 

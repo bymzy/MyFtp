@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <memory.h>
 #include "Job.h"
+#include "ThreadGroup.h"
 
 #define PORT 3333
 #define SERVERIP "127.0.0.1"
@@ -25,7 +26,7 @@ struct pollfd *fds = NULL;
 
 int ReadNBytes(int fd, char *buf, int len)
 {
-    int toRead = 4;
+    int toRead = len;
     int readed = 0;
     int ret = 0;
     int err = 0;
@@ -43,6 +44,7 @@ int ReadNBytes(int fd, char *buf, int len)
                 err = 0;
                 continue;
             }
+            perror("recv failed!");
             break;
         } else {
             readed += ret;
@@ -113,7 +115,8 @@ int HandleRead(int fd)
     memcpy(&msglen, len, 4);
     msglen = ntohl(msglen);
 
-    char * data = (char *)malloc(msglen);
+    char * data = (char *)malloc(msglen + 1);
+    bzero(data, msglen + 1);
     err = ReadNBytes(fd, data, msglen);
     if (err != 0) {
         free(data);
@@ -132,6 +135,7 @@ int main(int argc, char *argv[])
     int listenFd = -1;
     int currentUser = 0;
 
+    InitThreads();
     InitListen(SERVERIP, PORT, &listenFd);
 
     fds = (struct pollfd *)malloc(sizeof(struct pollfd) * (MAXUSER + 1));
@@ -150,7 +154,6 @@ int main(int argc, char *argv[])
             break;
         } else if (ret == 0) {
             /* timeout */
-            printf("poll timeout!\n");
             continue;
         } else {
             /* fds ready */
@@ -166,17 +169,21 @@ int main(int argc, char *argv[])
                         continue;
                     }
 
+                    currentUser++;
                     SetNonBlock(client);
-                    fds[client].fd = client;
-                    fds[client].events = POLLIN | POLLRDHUP;
-                    fds[client].revents = 0;
-
+#if 0
+                    fds[currentUser].fd = client;
+                    fds[currentUser].events = POLLIN | POLLRDHUP;
+                    fds[currentUser].revents = 0;
+#endif
+                    SetEvent(fds, currentUser, client, POLLIN | POLLRDHUP);
+                    printf("accept client %d, current user %d\n", client, currentUser);
                 } else if (fds[i].revents & POLLRDHUP) {
                     close(fds[i].fd);
                     fds[i].fd = fds[currentUser].fd;
                     currentUser--;
                 } else if (fds[i].revents & POLLIN) {
-                    err = HandleRead(fds[i].revents);
+                    err = HandleRead(fds[i].fd);
                     if (err != 0) {
                         close(fds[i].fd);
                         fds[i].fd = fds[currentUser].fd;
