@@ -2,6 +2,9 @@ objs/*
 bin/*
 *.o
 core.*
+CMake*
+build/*
+.idea/*
 
 # Object files
 *.o
