@@ -6,7 +6,7 @@
 #include <assert.h>
 #include "avl.h"
 
-static struct AVLNode* _mallocNode();
+static struct AVLNode* _mallocNode(int (*cmp)(const void *leftKey, const void *rightKey));
 
 #define IsLChild(n) ((n)->parent != NULL && ((n)->parent->leftChild == (n)))
 #define IsRChild(n) ((n)->parent != NULL && ((n)->parent->rightChild == (n)))
@@ -325,7 +325,7 @@ static void _inOrder(struct AVLNode *tree)
     _inOrder(tree->rightChild);
 }
 
-struct AVLNode* _mallocNode(int (*cmp)(void *leftKey, void *rightKey))
+struct AVLNode* _mallocNode(int (*cmp)(const void *leftKey, const void *rightKey))
 {
     struct AVLNode *ret = malloc(sizeof(struct AVLNode));
 
@@ -351,9 +351,10 @@ struct AVLTable* createTable(CmpType cmp)
     return t;
 }
 
-struct AVLNode* findNode(struct AVLTable* table, void *key)
+void* findNode(struct AVLTable* table, void *key)
 {
-    return table->root->search(table->root, key);
+    struct AVLNode *s = table->root->search(table->root, key);
+    return s->value;
 }
 
 struct AVLNode* insertNode(struct AVLTable* table, void *key, void *value)
@@ -400,10 +401,12 @@ int *mallocValue(int v)
     return ret;
 }
 
-static int charCompare(void *leftKey, void *rightKey)
+int charCompare(const void *leftKey, const void *rightKey)
 {
     return strcmp((char*)leftKey, (char*)rightKey);
 }
+
+#if 0
 
 int main()
 {
@@ -429,5 +432,7 @@ int main()
     freeTable(table);
     return 0;
 }
+
+#endif
 
 

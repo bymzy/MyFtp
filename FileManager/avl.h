@@ -15,7 +15,7 @@ struct AVLNode {
     int hight;
 
     /* function zone */
-    int (*compare)(void *leftKey, void *rightkey);
+    int (*compare)(const void *leftKey, const void *rightkey);
     void (*free)(struct AVLNode *tree);
     void (*freeNode)(struct AVLNode *node);
     void (*inOrder)(struct AVLNode *tree);
@@ -35,7 +35,7 @@ struct AVLNode {
 /* user AVLTable to wrap AVLNode
  * */
 
-typedef int (*CmpType)(void *leftKey, void *rightKey);
+typedef int (*CmpType)(const void *leftKey, const void *rightKey);
 
 struct AVLTable {
     struct AVLNode * root;
@@ -43,13 +43,14 @@ struct AVLTable {
 };
 
 struct AVLTable* createTable(CmpType m); 
-struct AVLNode* findNode(struct AVLTable *table, void *key);
+void* findNode(struct AVLTable *table, void *key);
 struct AVLNode* insertNode(struct AVLTable *table, void *key, void *value);
 /* success remove return 0 , falied remove return 1 */
 int deleteNode(struct AVLTable *table, void *key);
 void freeTable(struct AVLTable *table);
 void traverseTable(struct AVLTable *table);
 
+int charCompare(const void *leftKey, const void *rightKey);
 #endif
 
 

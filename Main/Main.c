@@ -15,6 +15,7 @@
 #include <memory.h>
 #include "Job.h"
 #include "ThreadGroup.h"
+#include "FileManager.h"
 
 #define PORT 3333
 #define SERVERIP "192.168.0.18"
@@ -135,6 +136,8 @@ int main(int argc, char *argv[])
     int listenFd = -1;
     int currentUser = 0;
 
+
+    InitFileManager("/root/src");
     InitThreads();
     InitListen(SERVERIP, PORT, &listenFd);
 
