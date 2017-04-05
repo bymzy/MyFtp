@@ -203,7 +203,7 @@ static struct AVLNode* _search(struct AVLNode *tree, void *key)
 }   
 
 
-static struct AVLNode* _insert(struct AVLTable *table, void *key, void *value)
+static struct AVLNode* _insert(struct AVLTable *table, void *key, void *value, int* err)
 {
     struct AVLNode* hot = NULL;
     struct AVLNode* temp= NULL;
@@ -212,8 +212,11 @@ static struct AVLNode* _insert(struct AVLTable *table, void *key, void *value)
     pfound = _search_in(&tree, &hot, key);
 
     if(*pfound != NULL) {
+        *err = 1;
         return *pfound;
     }
+
+    *err = 0;
 
     /* malloc value */
     *pfound = _mallocNode(table->cmp);
@@ -359,19 +362,35 @@ void* findNode(struct AVLTable* table, void *key)
 
 struct AVLNode* insertNode(struct AVLTable* table, void *key, void *value)
 {
+    int err = 0;
     if (table->root == NULL) {
         table->root = _mallocNode(table->cmp);
         table->root->key = key;
         table->root->value = value;
+        table->size += 1;
         return table->root;
     } else {
-        return table->root->insert(table, key, value);
+        struct AVLNode *ret = NULL;
+        ret = table->root->insert(table, key, value, &err);
+        if (err != 0) {
+            free(key);
+            free(value);
+        } else {
+            table->size += 1;
+        }
+        return ret;
     }
 }
 
 int deleteNode(struct AVLTable* table, void *key)
 {
-    return table->root->remove(table, key);
+    int err = 0;
+    err = table->root->remove(table, key);
+    if (err == 0) {
+       table->size -= 1;
+    }
+
+    return err;
 }
 
 void freeTable(struct AVLTable* table)

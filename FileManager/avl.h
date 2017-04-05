@@ -3,6 +3,7 @@
 #ifndef __AVL_H_
 #define __AVL_H_
 
+#include <stdint.h>
 
 struct AVLTable;
 
@@ -22,7 +23,7 @@ struct AVLNode {
 
     /* return pointer to pointer, it's helpful in insert and remove */
     struct AVLNode* (*search)(struct AVLNode *tree, void *key);
-    struct AVLNode* (*insert)(struct AVLTable *table, void *key, void *value);
+    struct AVLNode* (*insert)(struct AVLTable *table, void *key, void *value, int* err);
 
     /* @return: 0 success, 1 failed*/
     int (*remove)(struct AVLTable *table, char *key);
@@ -40,6 +41,7 @@ typedef int (*CmpType)(const void *leftKey, const void *rightKey);
 struct AVLTable {
     struct AVLNode * root;
     CmpType cmp;
+    uint32_t size;
 };
 
 struct AVLTable* createTable(CmpType m); 

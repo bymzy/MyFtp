@@ -3,6 +3,7 @@
 #ifndef __LIST_H__
 #define __LIST_H__
 
+#include <stdint.h>
 struct ListTable;
 
 struct ListNode {
@@ -14,10 +15,11 @@ struct ListNode {
 
 struct ListTable {
     struct ListNode *root;
+    uint32_t size;
 };
 
 struct ListTable* createListTable();
-struct ListNode* insertListTable(struct ListTable *l, void *value);
+struct ListNode* insertListItem(struct ListTable *l, void *value);
 
 #endif
 

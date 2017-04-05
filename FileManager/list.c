@@ -33,9 +33,10 @@ struct ListTable *createListTable()
     return (struct ListTable*)malloc(sizeof(struct ListTable));
 }
 
-struct ListNode* insertListTable(struct ListTable *table, void *value)
+struct ListNode* insertListItem(struct ListTable *table, void *value)
 {
     assert(table != NULL);
+    table->size += 1;
     if (table->root == NULL) {
         /* malloc root node */
         struct ListNode *new = (struct ListNode*)malloc(sizeof(struct ListNode));

@@ -47,6 +47,7 @@ struct FileManager {
 
 int InitFileManager(const char *repo);
 int SearchDir(const char *dir, struct Dir *parent);
+int ListDir(const char *dir, char *buf);
 
 
 #endif

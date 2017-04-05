@@ -10,7 +10,7 @@
 #include "Job.h"
 #include "Util.h"
 #include "ThreadGroup.h"
-#include "FileManager/FileManager.h"
+#include "FileManager.h"
 
 void ParseJob(int fd, char *buf)
 {
@@ -47,9 +47,6 @@ void DoList(int fd, char *data, char *buf)
 void ReplyList(int fd, char *data)
 {
     /* get all dir of root */
-
-
-
     /* TODO this is a test */
     char words[] = "helleo";
     int len = strlen(words);

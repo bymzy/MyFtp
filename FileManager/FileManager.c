@@ -14,6 +14,17 @@
 #include "list.h"
 
 static struct FileManager *g_file_manager = NULL;
+static pthread_mutex_t s_mutex;
+
+static void Lock()
+{
+
+}
+
+static void UnLock()
+{
+
+}
 
 char * addStr(const char *left, const char *right)
 {
@@ -91,7 +102,7 @@ int SearchDir(const char *dirName, struct Dir *parent)
                     parent->subDirTable = createListTable();
                 }
 
-                insertListTable(parent->subDirTable, dir);
+                insertListItem(parent->subDirTable, dir);
 
                 char *nextDir = addStr(entry->d_name, "");
                 SearchDir(nextDir, dir);
@@ -120,5 +131,43 @@ int SearchDir(const char *dirName, struct Dir *parent)
 
     return 0;
 }
+
+int ListDir(const char *dirName, char *buf) {
+    uint32_t dirCount = 0;
+    uint32_t fileCount = 0;
+    int err = 0;
+    void *node = NULL;
+    struct Dir *dir = NULL;
+    uint32_t len = 0;
+
+    len += 4;
+
+    do {
+        node = findNode(g_file_manager->dirTable, dirName);
+        if (node == NULL) {
+            err = EINVAL;
+            break;
+        }
+
+        dir = (struct Dir *) node;
+        struct ListNode *item = dir->subDirTable->root;
+        dirCount = dir->subDirTable->size;
+        /* subdir count */
+        len += 4;
+        while (item != NULL) {
+            struct Dir*subdir = (struct Dir*)item;
+            len += strlen(subdir->name);
+            item = item->next;
+        }
+
+        /* file count */
+        len += 4;
+
+
+    } while(0);
+
+    return err;
+}
+
 
 
