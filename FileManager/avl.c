@@ -399,6 +399,35 @@ void freeTable(struct AVLTable* table)
     free(table);
 }
 
+void traverse_init(struct AVLTraverseTable *traverseTable, struct AVLTable *avlTable)
+{
+    traverseTable->avlTable = avlTable;
+    traverseTable->cur = NULL;
+}
+
+void* traverse_get_first(struct AVLTraverseTable *traverseTable)
+{
+    struct AVLNode *min = traverseTable->avlTable->root;
+
+    while (min != NULL && min->leftChild != NULL) {
+        min = min->leftChild;
+    }
+    traverseTable->cur = min;
+
+    return min->value;
+}
+
+void* traverse_get_next(struct AVLTraverseTable *traverseTable)
+{
+    struct AVLNode *ret = NULL;
+    if (traverseTable->cur == NULL) {
+        return traverse_get_first(traverseTable);
+    }
+
+    ret = _succ(traverseTable->cur);
+    return ret->value;
+}
+
 void traverseTable(struct AVLTable *table)
 {
     table->root->inOrder(table->root);
@@ -425,7 +454,7 @@ int charCompare(const void *leftKey, const void *rightKey)
     return strcmp((char*)leftKey, (char*)rightKey);
 }
 
-#if 0
+#if 1
 
 int main()
 {
@@ -448,7 +477,17 @@ int main()
     traverseTable(table);
 
 
+    /* traverse */
+    struct AVLTraverseTable *traverseTable = malloc(sizeof(struct AVLTraverseTable));
+    traverse_init(traverseTable, table);
+    int *data = NULL;
+
+    while((data = traverse_get_next(traverseTable)) != NULL) {
+        printf("val: %d\n", (int*)data);
+    }
+
     freeTable(table);
+    free(traverseTable);
     return 0;
 }
 

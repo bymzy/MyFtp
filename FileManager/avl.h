@@ -44,12 +44,24 @@ struct AVLTable {
     uint32_t size;
 };
 
+struct AVLTraverseTable {
+    struct AVLTable *avlTable;
+    struct AVLNode *cur;
+};
+
 struct AVLTable* createTable(CmpType m); 
 void* findNode(struct AVLTable *table, void *key);
 struct AVLNode* insertNode(struct AVLTable *table, void *key, void *value);
 /* success remove return 0 , falied remove return 1 */
 int deleteNode(struct AVLTable *table, void *key);
 void freeTable(struct AVLTable *table);
+
+
+void traverse_init(struct AVLTraverseTable *traverseTable, struct AVLTable *avlTable);
+void *traverse_get_first(struct AVLTraverseTable *traverseTable);
+void *traverse_get_next(struct AVLTraverseTable *traverseTable);
+
+
 void traverseTable(struct AVLTable *table);
 
 int charCompare(const void *leftKey, const void *rightKey);
