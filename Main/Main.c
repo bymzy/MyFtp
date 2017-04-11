@@ -18,7 +18,7 @@
 #include "FileManager.h"
 
 #define PORT 3333
-#define SERVERIP "192.168.0.18"
+#define SERVERIP "192.168.37.111"
 #define BACKLOG 10
 #define MAXUSER 1024
 #define POLLTIMEOUT 100

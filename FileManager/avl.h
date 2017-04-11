@@ -50,7 +50,7 @@ struct AVLTraverseTable {
 };
 
 struct AVLTable* createTable(CmpType m); 
-void* findNode(struct AVLTable *table, void *key);
+struct AVLNode* findNode(struct AVLTable *table, void *key);
 struct AVLNode* insertNode(struct AVLTable *table, void *key, void *value);
 /* success remove return 0 , falied remove return 1 */
 int deleteNode(struct AVLTable *table, void *key);
@@ -60,6 +60,7 @@ void freeTable(struct AVLTable *table);
 void traverse_init(struct AVLTraverseTable *traverseTable, struct AVLTable *avlTable);
 void *traverse_get_first(struct AVLTraverseTable *traverseTable);
 void *traverse_get_next(struct AVLTraverseTable *traverseTable);
+void *traverse_get_last(struct AVLTraverseTable *traverseTable);
 
 
 void traverseTable(struct AVLTable *table);

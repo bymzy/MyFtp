@@ -29,6 +29,7 @@ static struct AVLNode *_succ(struct AVLNode *node)
         struct AVLNode* parent = node->parent;
         struct AVLNode* tempNode = node;
         while(parent != NULL && parent->rightChild == tempNode) {
+            tempNode = parent;
             parent = parent->parent;
         }
         return parent;
@@ -354,10 +355,9 @@ struct AVLTable* createTable(CmpType cmp)
     return t;
 }
 
-void* findNode(struct AVLTable* table, void *key)
+struct AVLNode* findNode(struct AVLTable* table, void *key)
 {
-    struct AVLNode *s = table->root->search(table->root, key);
-    return s->value;
+    return table->root->search(table->root, key);
 }
 
 struct AVLNode* insertNode(struct AVLTable* table, void *key, void *value)
@@ -414,7 +414,19 @@ void* traverse_get_first(struct AVLTraverseTable *traverseTable)
     }
     traverseTable->cur = min;
 
-    return min->value;
+    return min == NULL? NULL:min->value;
+}
+
+void* traverse_get_last(struct AVLTraverseTable *traverseTable)
+{
+    struct AVLNode *max = traverseTable->avlTable->root;
+
+    while (max != NULL && max->rightChild != NULL) {
+        max = max->rightChild;
+    }
+    traverseTable->cur = max;
+
+    return max == NULL?NULL:max->value;
 }
 
 void* traverse_get_next(struct AVLTraverseTable *traverseTable)
@@ -425,8 +437,10 @@ void* traverse_get_next(struct AVLTraverseTable *traverseTable)
     }
 
     ret = _succ(traverseTable->cur);
-    return ret->value;
+    traverseTable->cur = ret;
+    return ret == NULL?NULL:ret->value;
 }
+
 
 void traverseTable(struct AVLTable *table)
 {
@@ -454,7 +468,7 @@ int charCompare(const void *leftKey, const void *rightKey)
     return strcmp((char*)leftKey, (char*)rightKey);
 }
 
-#if 1
+#if 0
 
 int main()
 {
@@ -480,10 +494,15 @@ int main()
     /* traverse */
     struct AVLTraverseTable *traverseTable = malloc(sizeof(struct AVLTraverseTable));
     traverse_init(traverseTable, table);
-    int *data = NULL;
+
+    int *data = traverse_get_last(traverseTable);
+    printf("last: %d\n", *(int*)traverseTable->cur->value);
+
+    data = traverse_get_first(traverseTable);
+    printf("first: %d\n", *(int*)traverseTable->cur->value);
 
     while((data = traverse_get_next(traverseTable)) != NULL) {
-        printf("val: %d\n", (int*)data);
+        printf("val: %d\n", *(int*)data);
     }
 
     freeTable(table);
