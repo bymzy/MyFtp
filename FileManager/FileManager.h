@@ -7,7 +7,8 @@
 #include "list.h"
 
 enum FileType {
-    FILE_dir = 0,
+    FILE_null = 0,
+    FILE_dir,
     FILE_reg
 };
 
@@ -47,7 +48,11 @@ struct FileManager {
 
 int InitFileManager(const char *repo);
 int SearchDir(const char *dir, struct Dir *parent);
-int ListDir(const char *dir, char *buf);
+int TryLock(struct FileLock *lock, int lockType, char **errStr);
+
+int ListDir(const char *dir, char **buf, int *bufLen);
+int LockFile(char *fileName, int lockType, int fileType, char **buf, int *bufLen);
+void DebugDir(struct Dir *dir);
 
 
 #endif

@@ -15,6 +15,7 @@ struct ListNode {
 
 struct ListTable {
     struct ListNode *root;
+    struct ListNode *tail;
     uint32_t size;
 };
 

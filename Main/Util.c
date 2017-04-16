@@ -30,4 +30,12 @@ char *writeBytes(char *buf, char *in, uint32_t len)
     return buf + len;
 }
 
+char *writeString(char *buf, char *in, uint32_t len)
+{
+    buf = writeInt(buf, len);
+    buf = writeBytes(buf, in, len);
+}
+
+
+
 

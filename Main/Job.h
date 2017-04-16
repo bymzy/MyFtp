@@ -4,7 +4,9 @@
 #define __JOB_H_
 
 enum JobKind {
-    Job_List,
+    Job_null = 0,
+    Job_list,
+    Job_lock,
 };
 
 struct Job {
@@ -21,7 +23,8 @@ void ParseJob(int fd, char *data);
 void FreeJob(struct Job *job);
 void DoJob(struct Job *job);
 
-void DoList(int fd, char *data, char *buf);
-void ReplyList(int fd, char *data);
+void CreateJob(int fd, int jobType, char *data, char *buf);
+void DoList(int fd, char *data);
+void DoLock(int fd, char *data);
 #endif
 

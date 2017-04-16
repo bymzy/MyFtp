@@ -10,14 +10,14 @@
 #include "Job.h"
 #include "Util.h"
 #include "ThreadGroup.h"
-#include "FileManager.h"
+#include "../FileManager/FileManager.h"
 
 void ParseJob(int fd, char *buf)
 {
     char *index = buf;
 
     /* parse msg type */
-    int typelen;
+    uint32_t typelen;
     index = readInt(index, &typelen);
 
     assert(typelen < 20);
@@ -27,38 +27,66 @@ void ParseJob(int fd, char *buf)
 
     printf("req type: %s\n", reqType);
     if (strcmp(reqType, "list") == 0) {
-        DoList(fd, index, buf);
+        CreateJob(fd, Job_list, index, buf);
+    } else if (strcmp(reqType, "lock") == 0) {
+        CreateJob(fd, Job_lock, index, buf);
     } else {
         assert(0);
     }
 }
 
-void DoList(int fd, char *data, char *buf)
+/* @param buf, use this to free buffer we malloced in main thread */
+void CreateJob(int fd, int jobType, char *data, char *buf)
 {
     struct Job *job = (struct Job *)malloc(sizeof(struct Job));
     job->fd = fd;
-    job->jobKind = Job_List;
+    job->jobKind = jobType;
     job->data = data;
     job->buf = buf;
 
     EnqueJob(job);
 }
 
-void ReplyList(int fd, char *data)
+void DoList(int fd, char *data)
 {
-    /* get all dir of root */
-    /* TODO this is a test */
-    char words[] = "helleo";
-    int len = strlen(words);
-    char *buf = (char *)malloc(4 + len + 4);
-    int dataSize = htonl(len + 4);
-    len = htonl(len);
+    /* get target dir */
+    uint32_t targetLen = 0;
+    data = readInt(data, &targetLen);
 
-    memcpy(buf, &dataSize, 4);
-    memcpy(buf + 4, &len, 4);
-    memcpy(buf + 8, words, sizeof(words));
+    char *dir = (char *)malloc(targetLen + 1);
+    memcpy(dir, data, targetLen);
+    printf("request dir is %s\n", dir);
 
-    SendAll(fd, buf, 4 + 4 + strlen(words));
+    /* encode buf by FileManager */
+    char *buf = NULL;
+    int sendLen = 0;
+    ListDir(dir, &buf, &sendLen);
+
+    SendAll(fd, buf, sendLen);
+    free(buf);
+}
+
+void DoLock(int fd, char *data)
+{
+    /* get lock type */
+    uint32_t lockType = LOCK_null;
+    data = readInt(data, &lockType);
+
+    /* get file type */
+    uint32_t fileType = FILE_reg;
+    data = readInt(data, &fileType);
+
+    /* get lock file */
+    uint32_t fileNameLen = 0;
+    data = readInt(data, &fileNameLen);
+    char *name = malloc(fileNameLen + 1);
+    bzero(name, fileNameLen + 1);
+    data = readBytes(data, name, fileNameLen);
+    
+    char *buf = NULL;
+    int sendLen = 0;
+    LockFile(name, lockType, fileType, &buf, &sendLen);
+    SendAll(fd, buf, sendLen);
     free(buf);
 }
 
@@ -71,8 +99,11 @@ void FreeJob(struct Job *job)
 void DoJob(struct Job *job)
 {
     switch (job->jobKind) {
-        case Job_List:
-            ReplyList(job->fd, job->data);
+        case Job_list:
+            DoList(job->fd, job->data);
+            break;
+        case Job_lock:
+            DoLock(job->fd, job->data);
             break;
     }
 }

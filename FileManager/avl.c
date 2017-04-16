@@ -352,6 +352,9 @@ struct AVLTable* createTable(CmpType cmp)
 {
     struct AVLTable *t = (struct AVLTable *)malloc(sizeof(struct AVLTable));
     t->cmp = cmp;
+    t->size = 0;
+    t->root = NULL;
+
     return t;
 }
 
@@ -373,6 +376,7 @@ struct AVLNode* insertNode(struct AVLTable* table, void *key, void *value)
         struct AVLNode *ret = NULL;
         ret = table->root->insert(table, key, value, &err);
         if (err != 0) {
+            printf("insert failed!!!\n");
             free(key);
             free(value);
         } else {
@@ -483,7 +487,7 @@ int main()
     insertNode(table, mallocKey("h"), mallocValue(101));
     traverseTable(table);
 
-    struct AVLNode *f = findNode(table, "a");
+    struct AVLNode *f = findNode(table, "e");
     printf("key:%s, value:%d\n", (char*)f->key, *(int*)f->value);
     deleteNode(table, "b");
 
