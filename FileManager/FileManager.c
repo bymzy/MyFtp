@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <libgen.h>
+#include <memory.h>
+#include <openssl/md5.h>
 
 #include "FileManager.h"
 #include "avl.h"
@@ -19,6 +21,7 @@
 
 static struct FileManager *g_file_manager = NULL;
 static pthread_mutex_t s_mutex;
+char g_repo[200];
 
 static void Lock()
 {
@@ -28,6 +31,11 @@ static void Lock()
 static void UnLock()
 {
 
+}
+
+char * GetRealPath(const char *fileName)
+{
+    return addStr(g_repo, fileName);
 }
 
 void DebugDir(struct Dir *dir)
@@ -162,7 +170,7 @@ int SearchDir(const char *dirName, struct Dir *parent)
     return 0;
 }
 
-int ListDir(const char *dirName, char **buf, int *bufLen) {
+int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
     uint32_t dirCount = 0;
     uint32_t fileCount = 0;
     int err = 0;
@@ -249,7 +257,7 @@ int ListDir(const char *dirName, char **buf, int *bufLen) {
     return err;
 }
 
-int LockFile(char *fileName, int lockType, int fileType, char **buf, int *bufLen)
+int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen)
 {
     char *dirName = NULL;
     int err = 0;
@@ -343,6 +351,77 @@ int TryLock(struct FileLock *lock, int lockType, char **errStr)
     return err;
 }
 
+char *GetMd5FromFile(char *fileName)
+{
+    unsigned char c[MD5_DIGEST_LENGTH];
+    int i;
+    FILE *inFile = fopen (fileName, "rb");
+    MD5_CTX mdContext;
+    int bytes;
+    unsigned char data[1024];
+    char *md5 = malloc(33);
+    bzero(md5, 33);
+
+    if (inFile == NULL) {
+        printf ("%s can't be opened.\n", fileName);
+        return NULL;
+    }
+
+    MD5_Init (&mdContext);
+    while ((bytes = fread (data, 1, 1024, inFile)) != 0)
+        MD5_Update (&mdContext, data, bytes);
+    MD5_Final (c,&mdContext);
+    for(i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        sprintf(md5 + i * 2, "%02x", c[i]);
+    }
+    md5[33] = 0;
+    fclose (inFile);
+    return md5;
+}
+
+int CalcMd5(char *fileName, char **buf, uint32_t *sendLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *path = GetRealPath(fileName);
+    char *md5 = NULL;
+    uint32_t totalLen = 0; /* data len not include first 4 bytes */
+    char *writeIndex = NULL;
+
+    do {
+        md5 = GetMd5FromFile(path);
+        if (md5 == NULL) {
+            err = ERR_get_file_md5;
+            errStr = "get file md5 failed!";
+            break;
+        }
+
+        printf("md5 of %s is %s \n", path, md5);
+    } while(0);
+    
+    totalLen += 4 + 4 + strlen(errStr);
+    if (err == 0) {
+        totalLen += 4 + strlen(md5);
+    }
+
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (err == 0) {
+        writeIndex = writeString(writeIndex, md5, strlen(md5));
+    }
+
+    printf("CalcMd5, err %d, errStr %s\n", err, errStr);
+    free(path);
+    free(md5);
+
+    return err;
+}
 
 
 

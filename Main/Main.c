@@ -15,7 +15,7 @@
 #include <memory.h>
 #include "Job.h"
 #include "ThreadGroup.h"
-#include "FileManager.h"
+#include "../FileManager/FileManager.h"
 
 #define PORT 3333
 #define SERVERIP "127.0.0.1"
@@ -23,6 +23,7 @@
 #define MAXUSER 1024
 #define POLLTIMEOUT 100
 
+extern char g_repo[200];
 struct pollfd *fds = NULL;
 
 int ReadNBytes(int fd, char *buf, int len)
@@ -136,8 +137,9 @@ int main(int argc, char *argv[])
     int listenFd = -1;
     int currentUser = 0;
 
-
-    InitFileManager("/root/src");
+    bzero(g_repo, 200);
+    strcpy(g_repo, "/root/src");
+    InitFileManager(g_repo);
     InitThreads();
     InitListen(SERVERIP, PORT, &listenFd);
 

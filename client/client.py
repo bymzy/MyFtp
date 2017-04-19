@@ -116,13 +116,35 @@ class MyCmd(cmd.Cmd):
         print err, errStr
         return err
 
+    def do_md5(self, arg):
+        cmd = "md5"
+        fileName = arg
+
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(fileName)
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_str(fileName)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errstr = self.recv_err_errstr()
+        print err, errstr
+        md5 = ""
+        if err == 0:
+            md5 = self.recv_str()
+            print md5
+        else:
+            print err, "md5 failed", errstr
+
     ## download file
     def do_get(self, arg):
         err = self.try_lock(arg)
         if err != 0:
             return
 
-        #
+        # ask for file md5 
 
     def help_help(self):
         print "show help info"

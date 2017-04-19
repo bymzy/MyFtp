@@ -30,6 +30,8 @@ void ParseJob(int fd, char *buf)
         CreateJob(fd, Job_list, index, buf);
     } else if (strcmp(reqType, "lock") == 0) {
         CreateJob(fd, Job_lock, index, buf);
+    } else if (strcmp(reqType, "md5") == 0) {
+        CreateJob(fd, Job_md5, index, buf);
     } else {
         assert(0);
     }
@@ -64,6 +66,7 @@ void DoList(int fd, char *data)
 
     SendAll(fd, buf, sendLen);
     free(buf);
+    free(dir);
 }
 
 void DoLock(int fd, char *data)
@@ -88,6 +91,24 @@ void DoLock(int fd, char *data)
     LockFile(name, lockType, fileType, &buf, &sendLen);
     SendAll(fd, buf, sendLen);
     free(buf);
+    free(name);
+}
+
+void DoMd5(int fd, char *data)
+{
+    /* get file name */
+    uint32_t fileNameLen = 0;
+    data = readInt(data, &fileNameLen);
+    char *name = malloc(fileNameLen + 1);
+    bzero(name, fileNameLen + 1);
+    data = readBytes(data, name, fileNameLen);
+
+    char *buf = NULL;
+    uint32_t sendLen = 0;
+    CalcMd5(name, &buf, &sendLen);
+    SendAll(fd, buf, sendLen);
+    free(buf);
+    free(name);
 }
 
 void FreeJob(struct Job *job)
@@ -104,6 +125,9 @@ void DoJob(struct Job *job)
             break;
         case Job_lock:
             DoLock(job->fd, job->data);
+            break;
+        case Job_md5:
+            DoMd5(job->fd, job->data);
             break;
     }
 }

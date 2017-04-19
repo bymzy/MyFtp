@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "list.h"
 
+extern char g_repo[];
+
 enum FileType {
     FILE_null = 0,
     FILE_dir,
@@ -50,8 +52,12 @@ int InitFileManager(const char *repo);
 int SearchDir(const char *dir, struct Dir *parent);
 int TryLock(struct FileLock *lock, int lockType, char **errStr);
 
-int ListDir(const char *dir, char **buf, int *bufLen);
-int LockFile(char *fileName, int lockType, int fileType, char **buf, int *bufLen);
+int ListDir(const char *dir, char **buf, uint32_t *bufLen);
+int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen);
+int CalcMd5(char *fileName, char **buf, uint32_t *bufLen);
+
+char * addStr(const char *left, const char *right);
+char *GetRealPath(const char *fileName);
 void DebugDir(struct Dir *dir);
 
 
