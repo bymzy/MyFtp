@@ -4,6 +4,8 @@
 import cmd
 import socket
 import struct
+import os
+import hashlib
 
 SERVERIP = "127.0.0.1"
 SERVERPORT = 3333
@@ -39,6 +41,9 @@ class MyCmd(cmd.Cmd):
 
     def pack_int(self, val):
         return struct.pack("!I", val)
+
+    def pack_64int(self, val):
+        return struct.pack("!Q", val)
 
     def pack_str(self, string):
         return self.pack_int(len(string)) + string
@@ -116,7 +121,19 @@ class MyCmd(cmd.Cmd):
         print err, errStr
         return err
 
-    def do_md5(self, arg):
+    def calc_md5(self, fileName):
+        fp = open(fileName, 'r')
+        m = hashlib.md5()
+        while 1:
+            chunk = fp.read(4096)
+            if chunk:
+                m.update(chunk)
+            else:
+                break
+        fp.close()
+        return m.hexdigest()
+
+    def get_md5(self, arg):
         cmd = "md5"
         fileName = arg
 
@@ -130,13 +147,79 @@ class MyCmd(cmd.Cmd):
 
         totalLen = self.recv_int()
         err, errstr = self.recv_err_errstr()
-        print err, errstr
         md5 = ""
         if err == 0:
             md5 = self.recv_str()
             print md5
         else:
             print err, "md5 failed", errstr
+        return err, md5
+
+    def calc_temp_file_name(self, arg ,md5):
+        return ".%s_%s" % (arg, md5)
+
+    ## recv file and write file
+    def start_with_offset(self, fileName, md5):
+        offset = 0
+        temp_file_name = self.calc_temp_file_name(os.path.basename(fileName), md5) 
+        print 'temp file name is %s ' % temp_file_name
+        if os.path.isfile(temp_file_name):
+            offset = os.path.getsize(temp_file_name)
+        else:
+            print 'mknode %s ' % temp_file_name
+            os.mknod(temp_file_name, 0644)
+
+        # open file for write
+        fp = open(temp_file_name, 'w')
+        fp.seek(offset)
+        err = 0
+        errStr = ''
+
+        while 1:
+            req = self._generate_read_req(fileName, offset, 64 << 10)
+            self._send(req)
+
+            recvLen = self.recv_int()
+            err, errStr = self.recv_err_errstr()
+            if err != 0:
+                print 'read file failed %s, %s ' % (err, errStr)
+                break;
+
+            dataLen = self.recv_int()
+            print 'data len %d' % dataLen
+            if dataLen > 0: 
+                data = self._recv(dataLen)
+                fp.write(data)
+            offset += dataLen
+
+            if dataLen != 64 << 10:
+                print 'read file end !'
+                break
+
+        fp.close()
+        return err
+
+    def _generate_read_req(self, fileName, offset, size):
+        '''
+        protocol:
+        string req type
+        string file name
+        8 bytes offset
+        4 bytes len
+        '''
+        cmd = "read"
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(fileName)
+        totalLen += 8  
+        totalLen += 4  
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_str(fileName)
+        msg += self.pack_64int(offset)
+        msg += self.pack_int(size)
+
+        return msg
 
     ## download file
     def do_get(self, arg):
@@ -145,6 +228,31 @@ class MyCmd(cmd.Cmd):
             return
 
         # ask for file md5 
+        md5 = ""
+        err, md5 = self.get_md5(arg)
+        if err != 0:
+            return
+
+        print "file md5 %s" % md5
+        err = self.start_with_offset(arg, md5)
+        if err != 0:
+            print 'get file failed!'
+            return
+        
+        # check md5
+        print 'base name %s ' % os.path.basename(arg)
+        temp_file_name = self.calc_temp_file_name(os.path.basename(arg), md5) 
+        localMd5 = self.calc_md5(temp_file_name)
+
+        print localMd5, md5
+
+        if localMd5 == md5:
+            print 'download file %s success!' % arg
+            os.rename(temp_file_name, os.path.basename(arg))
+        else:
+            print 'download file %s failed!' % arg
+            #os.unlink(temp_file_name)
+        return 
 
     def help_help(self):
         print "show help info"

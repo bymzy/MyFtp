@@ -32,6 +32,8 @@ void ParseJob(int fd, char *buf)
         CreateJob(fd, Job_lock, index, buf);
     } else if (strcmp(reqType, "md5") == 0) {
         CreateJob(fd, Job_md5, index, buf);
+    } else if (strcmp(reqType, "read") == 0) {
+        CreateJob(fd, Job_read, index, buf);
     } else {
         assert(0);
     }
@@ -111,6 +113,27 @@ void DoMd5(int fd, char *data)
     free(name);
 }
 
+void DoRead(int fd, char *data)
+{
+    char *fileName;
+    data = readString(data, &fileName);
+
+    uint64_t offset = 0;
+    data = read64Int(data, &offset);
+
+    uint32_t size = 0;
+    data = readInt(data, &size);
+
+    char *buf = NULL;
+    uint32_t sendLen = 0;
+
+    ReadData(fileName, offset, size, &buf, &sendLen);
+    SendAll(fd, buf, sendLen);
+
+    free(buf);
+    free(fileName);
+}
+
 void FreeJob(struct Job *job)
 {
     free(job->buf);
@@ -128,6 +151,9 @@ void DoJob(struct Job *job)
             break;
         case Job_md5:
             DoMd5(job->fd, job->data);
+            break;
+        case Job_read:
+            DoRead(job->fd, job->data);
             break;
     }
 }

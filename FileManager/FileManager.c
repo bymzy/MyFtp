@@ -12,6 +12,7 @@
 #include <libgen.h>
 #include <memory.h>
 #include <openssl/md5.h>
+#include <fcntl.h>
 
 #include "FileManager.h"
 #include "avl.h"
@@ -48,8 +49,8 @@ void DebugDir(struct Dir *dir)
 
 char * addStr(const char *left, const char *right)
 {
-    int leftLen = strlen(left);
-    int rightLen = strlen(right);
+    uint32_t leftLen = strlen(left);
+    uint32_t rightLen = strlen(right);
     char *ret = malloc(leftLen + rightLen + 1);
     strncpy(ret, left, leftLen);
     strncpy(ret + leftLen, right, rightLen);
@@ -419,6 +420,89 @@ int CalcMd5(char *fileName, char **buf, uint32_t *sendLen)
     printf("CalcMd5, err %d, errStr %s\n", err, errStr);
     free(path);
     free(md5);
+
+    return err;
+}
+
+int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32_t *sendLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *path = GetRealPath(fileName);
+    int fd = -1;
+    uint32_t toRead = size;
+    uint32_t readed= 0;
+    uint32_t ret = 0;
+    char *data = NULL;
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+
+    /* TODO file is opened frequently */
+
+    do {
+        fd = open(path, O_RDWR);   
+        if (fd < 0) {
+            err = errno;
+            errStr = strerror(err);
+            break;
+        }
+
+        data = malloc(size);
+        if (data == NULL) {
+            err = ENOMEM;
+            errStr = strerror(err);
+            break;
+        }
+
+        while (toRead > 0) {
+            ret = pread(fd, data + readed, toRead, offset + readed);
+            if (ret < 0) {
+                err = errno;
+                errStr = strerror(err);
+                break;
+            } else if (ret == 0) {
+                toRead = 0;
+                break;
+            } else {
+                toRead -= ret;
+                readed += ret;
+            }
+        }
+
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    if (err == 0) {
+        totalLen += 4;
+        totalLen += readed;
+    }
+    
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (err == 0) {
+        writeIndex = writeInt(writeIndex, readed);
+        writeIndex = writeBytes(writeIndex, data, readed);
+    }
+
+    printf("ReadData, err %d, errStr %s, %d bytes \n", err, errStr, readed);
+
+    if (fd != -1) {
+        close(fd);
+        fd = -1;
+    }
+
+    if (data != NULL) {
+        free(data);
+        data = NULL;
+    }
+
+    free(path);
 
     return err;
 }
