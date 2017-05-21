@@ -9,6 +9,7 @@ enum JobKind {
     Job_lock, /* lock file */
     Job_md5,  /* calc file md5 */
     Job_read, /* read data */
+    Job_unlock, /* unlock file */
 };
 
 struct Job {
@@ -30,6 +31,7 @@ void DoList(int fd, char *data);
 void DoLock(int fd, char *data);
 void DoMd5(int fd, char *data);
 void DoRead(int fd, char *data);
+void DoUnlock(int fd, char *data);
 
 #endif
 

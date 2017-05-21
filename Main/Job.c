@@ -30,6 +30,8 @@ void ParseJob(int fd, char *buf)
         CreateJob(fd, Job_list, index, buf);
     } else if (strcmp(reqType, "lock") == 0) {
         CreateJob(fd, Job_lock, index, buf);
+    } else if (strcmp(reqType, "unlock") == 0) {
+        CreateJob(fd, Job_unlock, index, buf);
     } else if (strcmp(reqType, "md5") == 0) {
         CreateJob(fd, Job_md5, index, buf);
     } else if (strcmp(reqType, "read") == 0) {
@@ -155,6 +157,9 @@ void DoJob(struct Job *job)
         case Job_read:
             DoRead(job->fd, job->data);
             break;
+        case Job_unlock:
+            DoUnlock(job->fd, job->data);
+            break;
     }
 }
 
@@ -181,4 +186,33 @@ void SendAll(int fd, char *buf, int total)
         toSend -= ret;
     }
 }
+
+void DoUnlock(int fd, char *data)
+{
+    /* get lock type */
+    uint32_t lockType = LOCK_null;
+    data = readInt(data, &lockType);
+
+    /* get file type */
+    uint32_t fileType = FILE_reg;
+    data = readInt(data, &fileType);
+
+    /* get lock file */
+    uint32_t fileNameLen = 0;
+    data = readInt(data, &fileNameLen);
+    char *name = malloc(fileNameLen + 1);
+    bzero(name, fileNameLen + 1);
+    data = readBytes(data, name, fileNameLen);
+    
+    char *buf = NULL;
+    int sendLen = 0;
+    UnLockFile(name, lockType, fileType, &buf, &sendLen);
+    SendAll(fd, buf, sendLen);
+    free(buf);
+    free(name);
+}
+
+
+
+
 

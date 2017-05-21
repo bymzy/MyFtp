@@ -329,6 +329,77 @@ int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *b
     return err;
 }
 
+int UnLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen)
+{
+    char *dirName = NULL;
+    int err = 0;
+    char *errStr = "";
+    struct AVLNode *node = NULL;
+    struct AVLTable *fileTable = NULL;
+    struct Dir *dir = NULL;
+    struct File *file = NULL;
+    uint32_t len = 0;
+    char *writeIndex = NULL;
+
+    if (fileType == FILE_reg) {
+        char *temp = strdup(fileName);
+        char *tempdir = dirname(temp);
+        if (strcmp(tempdir, "/") == 0) {
+            dirName = addStr("/", "");
+        } else {
+            dirName = addStr(tempdir, "/");
+        }
+        free(temp);
+    }
+
+    do {
+        /* search dir */
+        node = findNode(g_file_manager->dirTable, dirName);
+        if (node == NULL) {
+            err = EINVAL;
+            errStr = "dir not found!";
+            break;
+        }
+        
+        dir = (struct Dir *)node->value;
+        if (fileType == FILE_dir) {
+            err = TryUnLock(&dir->lock, lockType, &errStr);
+        } else {
+            /* search for file */
+            fileTable = dir->fileTable;
+            node = findNode(fileTable, fileName);
+            if (node == NULL)  {
+                err = ERR_file_not_exist;
+                errStr = "file not exist!";
+                break;
+            }
+            file = (struct File *)node->value;
+            err = TryUnLock(&file->lock, lockType, &errStr);
+        }
+
+    } while(0);
+
+    if (fileType == FILE_reg && dirName != NULL) {
+        free(dirName);
+    }
+
+    uint32_t totalLen = 8 + strlen(errStr);
+    len += 4;
+    len += 4;
+    len += 4 + strlen(errStr);
+
+    *buf = malloc(len);
+    *bufLen = len;
+    writeIndex = *buf;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+    printf("unlock file err:%d, errstr:%s\n", err, errStr);
+
+    return err;
+}
+
 int TryLock(struct FileLock *lock, int lockType, char **errStr)
 {
     int err = 0;
@@ -346,10 +417,17 @@ int TryLock(struct FileLock *lock, int lockType, char **errStr)
             break;
         }
 
-        lock->type = LOCK_read;
+        lock->type = lockType;
     } while(0);
 
     return err;
+}
+
+int TryUnLock(struct FileLock *lock, int lockType, char **errStr)
+{
+    lock->type = LOCK_null;
+
+    return 0;
 }
 
 char *GetMd5FromFile(char *fileName)
@@ -438,7 +516,8 @@ int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32
     char *writeIndex = NULL;
 
     /* TODO file is opened frequently */
-
+ 
+    printf("try read data!!!");
     do {
         fd = open(path, O_RDWR);   
         if (fd < 0) {
@@ -490,7 +569,7 @@ int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32
         writeIndex = writeBytes(writeIndex, data, readed);
     }
 
-    printf("ReadData, err %d, errStr %s, %d bytes \n", err, errStr, readed);
+    //printf("ReadData, err %d, errStr %s, offset %lld, %d bytes \n", err, errStr, offset, readed);
 
     if (fd != -1) {
         close(fd);

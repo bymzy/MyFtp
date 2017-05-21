@@ -7,7 +7,7 @@ import struct
 import os
 import hashlib
 
-SERVERIP = "127.0.0.1"
+SERVERIP = "192.168.1.111"
 SERVERPORT = 3333
 
 
@@ -19,17 +19,28 @@ class MyCmd(cmd.Cmd):
 
     def Connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.setblocking(True)
+        self.sock.settimeout(None)
         self.sock.connect((SERVERIP, 3333))
 
     def _send(self, msg):
         self.sock.sendall(msg)
 
     def _recv(self, size):
-        return self.sock.recv(size)
+        toRead = size
+        data = ''
+        while toRead > 0:
+            temp = self.sock.recv(toRead)
+            toRead -= len(temp)
+            data += temp
+        if len(data) != size:
+            print 'recv size not match , req size %d, to read %d, real size %d !!!!!' % (size, toRead, len(data))
+            exit(1)
+        return data
 
     ## util
     def recv_int(self):
-        data = self.sock.recv(4)
+        data = self._recv(4)
         val, = struct.unpack("!I", data)
         return val
 
@@ -118,7 +129,28 @@ class MyCmd(cmd.Cmd):
 
         totalLen = self.recv_int()
         err, errStr = self.recv_err_errstr()
-        print err, errStr
+        return err
+
+    def try_unlock(self, arg):
+        cmd = 'unlock'
+        fileName = arg
+        lockType = 2
+        fileType = 2
+
+        totalLen = 4 + len(cmd)
+        totalLen += 4;
+        totalLen += 4;
+        totalLen += 4 + len(fileName)
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_int(lockType)
+        msg += self.pack_int(fileType)
+        msg += self.pack_str(fileName)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errStr = self.recv_err_errstr()
         return err
 
     def calc_md5(self, fileName):
@@ -170,7 +202,7 @@ class MyCmd(cmd.Cmd):
             os.mknod(temp_file_name, 0644)
 
         # open file for write
-        fp = open(temp_file_name, 'w')
+        fp = open(temp_file_name, 'wb')
         fp.seek(offset)
         err = 0
         errStr = ''
@@ -180,15 +212,18 @@ class MyCmd(cmd.Cmd):
             self._send(req)
 
             recvLen = self.recv_int()
+            while recvLen == 0:
+                recvLen = self.recv_int()
+
             err, errStr = self.recv_err_errstr()
             if err != 0:
                 print 'read file failed %s, %s ' % (err, errStr)
                 break;
 
             dataLen = self.recv_int()
-            print 'data len %d' % dataLen
             if dataLen > 0: 
                 data = self._recv(dataLen)
+                fp.seek(offset)
                 fp.write(data)
             offset += dataLen
 
@@ -196,6 +231,7 @@ class MyCmd(cmd.Cmd):
                 print 'read file end !'
                 break
 
+        fp.flush()
         fp.close()
         return err
 
@@ -240,7 +276,7 @@ class MyCmd(cmd.Cmd):
             return
         
         # check md5
-        print 'base name %s ' % os.path.basename(arg)
+        print 'base name :%s ' % os.path.basename(arg)
         temp_file_name = self.calc_temp_file_name(os.path.basename(arg), md5) 
         localMd5 = self.calc_md5(temp_file_name)
 
@@ -251,7 +287,9 @@ class MyCmd(cmd.Cmd):
             os.rename(temp_file_name, os.path.basename(arg))
         else:
             print 'download file %s failed!' % arg
-            #os.unlink(temp_file_name)
+            os.unlink(temp_file_name)
+
+        self.try_unlock(arg)
         return 
 
     def help_help(self):
