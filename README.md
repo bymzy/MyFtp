@@ -1,1 +1,16 @@
 # MyFtp
+This is a simple Ftp-like program on linux with python client.
+
+## Target
+Sometimes it is annoying to scp files from one machine to another if you use scp(cause you need password :)). So why not make one simple program to handles files between machines.
+
+## Features
+- get files from server side (supported!)
+- put files to server side (not finished yet)
+- del files on server side (not finished yet)
+- mkdir on server side (not finished yet)
+- list files on server side (supported!)
+
+## Something more
+My job needs to copy file from CenOS to windows, i found i stupid user XFTP to transfer file, so i make this program and write some other scripts to copy automatic.
+
