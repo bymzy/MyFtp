@@ -56,8 +56,11 @@ int TryUnLock(struct FileLock *lock, int lockType, char **errStr);
 int ListDir(const char *dir, char **buf, uint32_t *bufLen);
 int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen);
 int CalcMd5(char *fileName, char **buf, uint32_t *bufLen);
-int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32_t *sendLen);
+int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32_t *bufLen);
 int UnLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen);
+int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t *bufLen);
+int WriteFile(char *fileName, char *md5, uint64_t offset, char *data, uint32_t dataLen, char **buf, uint32_t *bufLen);
+int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *sendLen);
 
 char * addStr(const char *left, const char *right);
 char *GetRealPath(const char *fileName);

@@ -8,6 +8,7 @@ enum Err {
     ERR_can_not_lock,
     ERR_file_not_exist,
     ERR_get_file_md5, 
+    ERR_md5_not_match,
 };
 
 #endif

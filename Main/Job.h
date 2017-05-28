@@ -10,6 +10,11 @@ enum JobKind {
     Job_md5,  /* calc file md5 */
     Job_read, /* read data */
     Job_unlock, /* unlock file */
+
+    /* this is for upload file */
+    Job_create, /* create file */
+    Job_write, /* write file */
+    Job_put_file_end,
 };
 
 struct Job {
@@ -32,6 +37,9 @@ void DoLock(int fd, char *data);
 void DoMd5(int fd, char *data);
 void DoRead(int fd, char *data);
 void DoUnlock(int fd, char *data);
+void DoCreate(int fd, char *data);
+void DoWrite(int fd, char *data);
+void DoPutFileEnd(int fd, char *data);
 
 #endif
 

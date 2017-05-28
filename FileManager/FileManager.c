@@ -297,7 +297,7 @@ int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *b
             /* search for file */
             fileTable = dir->fileTable;
             node = findNode(fileTable, fileName);
-            if (node == NULL)  {
+            if (node == NULL) {
                 err = ERR_file_not_exist;
                 errStr = "file not exist!";
                 break;
@@ -569,8 +569,6 @@ int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32
         writeIndex = writeBytes(writeIndex, data, readed);
     }
 
-    //printf("ReadData, err %d, errStr %s, offset %lld, %d bytes \n", err, errStr, offset, readed);
-
     if (fd != -1) {
         close(fd);
         fd = -1;
@@ -586,5 +584,211 @@ int ReadData(char *fileName, uint64_t offset, uint32_t size, char ** buf, uint32
     return err;
 }
 
+int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t *bufLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *filePath= GetRealPath(fileName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+    uint64_t offset = 0;
+    char tempFilePath[256] = {'\0'};
+
+    char *_tempFilePath = strdup(filePath);
+    char *_tempFileName = strdup(fileName);
+    sprintf(tempFilePath, "%s/.%s_%s", dirname(_tempFilePath), md5, basename(_tempFileName));
+    free(_tempFilePath);
+    free(_tempFileName);
+    
+    /* check file exist */
+    struct stat st;
+
+    printf("filepath: %s, tempFilePath: %s\n", filePath, tempFilePath);
+    do {
+        err = stat(filePath, &st);
+        if (err == 0) {
+            err = EEXIST;
+            errStr = "file exists! can't upload";
+            break;
+        }
+
+        err = stat(tempFilePath, &st);
+        if (err == 0) {
+            printf("find temp put file!!!, offset: %ldd\n", st.st_size);
+            offset = st.st_size;
+            break;
+        }
+        err = 0;
+
+        /* crate temp file */
+        int fd = open(tempFilePath, O_RDWR | O_CREAT | O_SYNC, 0644);
+        if (fd < 0) {
+            err = errno;
+            errStr = strerror(err);
+            printf("create file failed!!!");
+            break;
+        }
+
+        /*
+        err = posix_fallocate(fd, 0, size);
+        if (err != 0) {
+            err = errno;
+            errStr = strerror(err);
+            printf("posix fallocate failed!!!");
+            break;
+        }
+        */
+        offset = 0;
+
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    if (err == 0) {
+        totalLen += 8; /* start offset */
+    }
+
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *bufLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (err == 0) {
+        writeIndex = write64Int(writeIndex, offset);
+    }
+
+    
+    if (filePath != NULL) {
+        free(filePath);
+        filePath = NULL;
+    }
+
+    printf("try create file , err: %d, errstr: %s\n", err, errStr);
+    return err;
+}
+
+int WriteFile(char *fileName, char *md5, uint64_t offset, char *data, uint32_t dataLen, char **buf, uint32_t *bufLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *filePath= GetRealPath(fileName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+    char tempFilePath[256] = {'\0'};
+    int fd = -1;
+    size_t toWrite = dataLen;
+    size_t writed = 0;
+    ssize_t size = -1;
+
+    char *_tempFilePath = strdup(filePath);
+    char *_tempFileName = strdup(fileName);
+    sprintf(tempFilePath, "%s/.%s_%s", dirname(_tempFilePath), md5, basename(_tempFileName));
+    free(_tempFilePath);
+    free(_tempFileName);
+
+    do {
+        fd = open(tempFilePath, O_WRONLY);
+        if (fd < 0) {
+            err = errno;
+            errStr = strerror(err);
+            break;
+        }
+
+        while(toWrite > 0) {
+            writed = pwrite(fd, data + writed, toWrite, offset);
+            if (writed < 0) {
+                err = errno;
+                errStr = strerror(err);
+                break;
+            }
+            toWrite -= writed;
+            offset += writed;
+        }
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *bufLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (fd > 0) {
+        close(fd);
+        fd = -1;
+    }
+
+    if (filePath != NULL) {
+        free(filePath);
+    }
+
+    //printf("write file, err:%d, errstr: %s\n", err, errStr);
+    return err;
+}
+
+int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *filePath= GetRealPath(fileName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+    char tempFilePath[256] = {'\0'};
+    int fd = -1;
+    char *localMd5 = NULL;
+
+    char *_tempFilePath = strdup(filePath);
+    char *_tempFileName = strdup(fileName);
+    sprintf(tempFilePath, "%s/.%s_%s", dirname(_tempFilePath), md5, basename(_tempFileName));
+    free(_tempFilePath);
+    free(_tempFileName);
+
+    do {
+        /* get file md5 */
+        localMd5 = GetMd5FromFile(tempFilePath);
+        if (localMd5 == NULL) {
+            err = ERR_get_file_md5;
+            errStr = "get file md5 failed!";
+            break;
+        }
+
+        if (strcmp(localMd5, md5) != 0) {
+            unlink(tempFilePath);
+            err = ERR_md5_not_match;
+            errStr = "put file failed, md5 not match!";
+            printf("put file, but md5 not match, unlink it!!!, local: %s, client: %s \n",
+                    localMd5,
+                    md5);
+            break;
+        }
+
+        /* rename file */
+        err = rename(tempFilePath, filePath);
+        if (err < 0) {
+            err = errno;
+            errStr = strerror(err);
+            break;
+        }
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *bufLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (filePath != NULL) {
+        free(filePath);
+    }
+
+    return err;
+}
 
 

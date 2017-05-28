@@ -7,14 +7,14 @@ import struct
 import os
 import hashlib
 
-SERVERIP = "192.168.1.111"
+SERVERIP = '192.168.1.111'
 SERVERPORT = 3333
 
 
 class MyCmd(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
-        self.prompt = "->"
+        self.prompt = '->'
         self.Connect()
 
     def Connect(self):
@@ -41,20 +41,25 @@ class MyCmd(cmd.Cmd):
     ## util
     def recv_int(self):
         data = self._recv(4)
-        val, = struct.unpack("!I", data)
+        val, = struct.unpack('!I', data)
+        return val
+    
+    def recv_64int(self):
+        data = self._recv(8)
+        val, = struct.unpack('!Q', data);
         return val
 
     def recv_str(self):
         length = self.recv_int()
         if length == 0:
-            return ""
+            return ''
         return self._recv(length)
 
     def pack_int(self, val):
-        return struct.pack("!I", val)
+        return struct.pack('!I', val)
 
     def pack_64int(self, val):
-        return struct.pack("!Q", val)
+        return struct.pack('!Q', val)
 
     def pack_str(self, string):
         return self.pack_int(len(string)) + string
@@ -69,12 +74,12 @@ class MyCmd(cmd.Cmd):
         return True
 
     def help_quit(self, arg):
-        print "quit this program"
+        print 'quit this program'
 
     ## list
     def do_list(self, arg):
         # send command
-        cmd = "list"
+        cmd = 'list'
         totalLen = 4 + len(cmd)
         totalLen += 4 + len(arg)
 
@@ -103,14 +108,14 @@ class MyCmd(cmd.Cmd):
                 print f
                 i += 1
         else:
-            print err, "failed: " + errStr
+            print err, 'failed: ' + errStr
 
     def help_list(self):
-        print "list files on current dir!"
+        print 'list files on current dir!'
 
     ## lock
     def try_lock(self, arg):
-        cmd = "lock"
+        cmd = 'lock'
         fileName = arg
         lockType = 2
         fileType = 2
@@ -166,7 +171,7 @@ class MyCmd(cmd.Cmd):
         return m.hexdigest()
 
     def get_md5(self, arg):
-        cmd = "md5"
+        cmd = 'md5'
         fileName = arg
 
         totalLen = 4 + len(cmd)
@@ -179,16 +184,16 @@ class MyCmd(cmd.Cmd):
 
         totalLen = self.recv_int()
         err, errstr = self.recv_err_errstr()
-        md5 = ""
+        md5 = ''
         if err == 0:
             md5 = self.recv_str()
             print md5
         else:
-            print err, "md5 failed", errstr
+            print err, 'md5 failed', errstr
         return err, md5
 
     def calc_temp_file_name(self, arg ,md5):
-        return ".%s_%s" % (arg, md5)
+        return '.%s_%s' % (arg, md5)
 
     ## recv file and write file
     def start_with_offset(self, fileName, md5):
@@ -199,7 +204,7 @@ class MyCmd(cmd.Cmd):
             offset = os.path.getsize(temp_file_name)
         else:
             print 'mknode %s ' % temp_file_name
-            os.mknod(temp_file_name, 0644)
+            #os.mknod(temp_file_name, 0644) #mknode is not support on Windows
 
         # open file for write
         fp = open(temp_file_name, 'wb')
@@ -243,7 +248,7 @@ class MyCmd(cmd.Cmd):
         8 bytes offset
         4 bytes len
         '''
-        cmd = "read"
+        cmd = 'read'
         totalLen = 4 + len(cmd)
         totalLen += 4 + len(fileName)
         totalLen += 8  
@@ -264,12 +269,12 @@ class MyCmd(cmd.Cmd):
             return
 
         # ask for file md5 
-        md5 = ""
+        md5 = ''
         err, md5 = self.get_md5(arg)
         if err != 0:
             return
 
-        print "file md5 %s" % md5
+        print 'file md5 %s' % md5
         err = self.start_with_offset(arg, md5)
         if err != 0:
             print 'get file failed!'
@@ -292,12 +297,155 @@ class MyCmd(cmd.Cmd):
         self.try_unlock(arg)
         return 
 
+    def help_get(self):
+        print 'download file from server, eg: get /root/file'
+
+    ## upload file
+    def try_create(self, md5, size, filePath):
+        cmd = 'create'
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(filePath)
+        totalLen += 4 + len(md5)
+        totalLen += 8
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_str(filePath)
+        msg += self.pack_str(md5)
+        msg += self.pack_64int(size)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errstr = self.recv_err_errstr()
+        offset = 0
+        print err, errstr
+        if err != 0:
+            print errstr
+        else:
+            offset = self.recv_64int()
+        return err, offset
+    
+    def _read_file(self, f, size):
+        toRead = size
+        chunk = ''
+        data = ''
+        while toRead > 0:
+            chunk = f.read(toRead)
+            if not chunk:
+                break
+            data += chunk
+            toRead -= len(chunk)
+
+        return data
+
+    def put_file(self, srcFileName, destFileName, md5, offset, size):
+        err = 0
+        chunkSize = 256 * 1024
+        with open(srcFileName, 'rb') as f:
+            while size > 0:
+                f.seek(offset)
+                chunk = self._read_file(f, chunkSize)
+
+                cmd = 'write'
+                totalLen = 4 + len(cmd)
+                totalLen += 4 + len(destFileName)
+                totalLen += 4 + len(md5)
+                totalLen += 8
+                totalLen += 4
+                totalLen += len(chunk)
+
+                msg = self.pack_int(totalLen)
+                msg += self.pack_str(cmd)
+                msg += self.pack_str(destFileName)
+                msg += self.pack_str(md5)
+                msg += self.pack_64int(offset)
+                msg += self.pack_int(len(chunk))
+                msg += chunk
+                self._send(msg)
+
+                totalLen = self.recv_int()
+                err, errstr = self.recv_err_errstr()
+                if err != 0:
+                    break
+
+                offset += len(chunk)
+                size -= len(chunk)
+                if len(chunk) < chunkSize or size <= 0:
+                    print 'send file end!!!'
+                    break
+        return err
+
+    def put_file_end(self, destFileName, md5):
+        cmd = 'put_file_end'
+
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(destFileName)
+        totalLen += 4 + len(md5)
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_str(destFileName)
+        msg += self.pack_str(md5)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errstr = self.recv_err_errstr()
+        print 'put file end', err, errstr
+        return err
+
+    # put file /dir
+    def do_put(self, arg):
+        argList = arg.split(' ')
+
+        srcFilePath = argList[0]
+        fileName = os.path.basename(srcFilePath)
+        dirName = argList[1]
+        destFilePath = ''
+
+        if dirName[-1] != '/':
+            dirName += '/'
+
+        destFilePath = dirName + fileName
+        offset = 0
+
+        while 1:
+#
+#        err = self.try_lock(destFilePath)
+#        if err != 0:
+#            return  
+
+            md5 = self.calc_md5(srcFilePath)
+            size = os.path.getsize(srcFilePath)
+
+            # put file begin
+            err, offset = self.try_create(md5, size, destFilePath)
+            if err != 0:
+               break 
+
+            # try send data
+            err = self.put_file(srcFilePath, destFilePath, md5, offset, size)
+            if err != 0:
+                break
+
+            # put file end
+            err = self.put_file_end(destFilePath, md5)
+            if err != 0:
+                break
+
+            break
+#
+#        self.try_unlock(arg)
+#
+    
+    def help_put(self):
+        print 'upload file to server, eg: put file /dir'
+
     def help_help(self):
-        print "show help info"
+        print 'show help info'
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     cli = MyCmd();
-    cli.cmdloop("welcome To MyFtp!!!");
+    cli.cmdloop('welcome To MyFtp!!!');
 
 
