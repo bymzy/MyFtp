@@ -65,6 +65,7 @@ int InitFileManager(const char *repo)
     if (g_file_manager == NULL) {
         g_file_manager = (struct FileManager*)malloc(sizeof(struct FileManager));
         g_file_manager->dirTable = createTable(charCompare);
+        g_file_manager->uploadFileTable = createTable(charCompare);
     }
     
     /* add root to g_file_manager dirTable */
@@ -80,6 +81,7 @@ int InitFileManager(const char *repo)
     printf("dirname: %s\n", root->name);
 
     insertNode(g_file_manager->dirTable, addStr("", root->name), root);
+    insertNode(g_file_manager->uploadFileTable, addStr("/", ""), NULL);
 
     SearchDir(repo, root);
 
@@ -171,6 +173,41 @@ int SearchDir(const char *dirName, struct Dir *parent)
     return 0;
 }
 
+int AddIndex(const char *fileName, const char *md5)
+{
+
+    struct AVLNode *node = NULL;
+    char *tempFileName = strdup(fileName);
+    char *dirName = addStr(dirname(tempFileName), "/");
+    if (strcmp(dirName,"//") == 0) {
+        dirName[1] = '\0';
+    }
+
+    struct Dir *parent = NULL;
+    /* step 1, find parent dir */
+    do {
+        node = findNode(g_file_manager->dirTable, (void *)dirName);
+        assert(node != NULL);
+
+        parent = (struct Dir*)node->value;
+        
+        struct File *file = (struct File*)malloc(sizeof(struct File));
+        file->lock.type = LOCK_null;
+        file->lock.userId = -1;
+        file->name = strdup(fileName);
+        file->md5 = strdup(md5);
+        file->parent = parent;
+
+        insertNode(parent->fileTable, strdup(fileName), file);
+
+    } while(0);
+
+    free(tempFileName);
+    free(dirName);
+
+    return 0;
+}
+
 int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
     uint32_t dirCount = 0;
     uint32_t fileCount = 0;
@@ -254,7 +291,45 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
         }
     }
 
+    if (traverseTable != NULL) {
+        free(traverseTable);
+    }
+
     assert(writeIndex == (*buf + len + 4));
+    return err;
+}
+
+int UploadLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen)
+{
+    struct AVLNode *node = NULL;
+    int err = 0;
+    char *errStr = "";
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+
+
+    do {
+        /* step 1 , try find in uploadFileTable */
+        node = findNode(g_file_manager->uploadFileTable, (void *)fileName);
+        if (node != NULL) {
+            err = ERR_file_uploading;
+            errStr = "file with same name is uploading!!!";
+            break;
+        }
+
+        /* step 2 , insert */
+        insertNode(g_file_manager->uploadFileTable, strdup(fileName), NULL);
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *bufLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
     return err;
 }
 
@@ -325,6 +400,34 @@ int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *b
     writeIndex = writeInt(writeIndex, err);
     writeIndex = writeString(writeIndex, errStr, strlen(errStr));
     printf("lock file err:%d, errstr:%s\n", err, errStr);
+
+    return err;
+}
+
+int UploadUnLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *bufLen)
+{
+    struct AVLNode *node = NULL;
+    int err = 0;
+    char *errStr = "";
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+
+
+    do {
+        /* step 1 , try find in uploadFileTable */
+        node = findNode(g_file_manager->uploadFileTable, (void *)fileName);
+        assert(node != NULL);
+        deleteNode(g_file_manager->uploadFileTable, (void *)fileName);
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *bufLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
 
     return err;
 }
@@ -596,7 +699,8 @@ int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t
 
     char *_tempFilePath = strdup(filePath);
     char *_tempFileName = strdup(fileName);
-    sprintf(tempFilePath, "%s/.%s_%s", dirname(_tempFilePath), md5, basename(_tempFileName));
+    char *_tempFileDir = dirname(_tempFilePath);
+    sprintf(tempFilePath, "%s/.%s_%s", _tempFileDir, md5, basename(_tempFileName));
     free(_tempFilePath);
     free(_tempFileName);
     
@@ -620,7 +724,7 @@ int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t
         }
         err = 0;
 
-        /* crate temp file */
+        /* open 会变相的判断目录是否存在 */
         int fd = open(tempFilePath, O_RDWR | O_CREAT | O_SYNC, 0644);
         if (fd < 0) {
             err = errno;
@@ -766,6 +870,14 @@ int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
             break;
         }
 
+        /* add index */
+        err = AddIndex(fileName, md5);
+        if (err != 0) {
+            errStr = "add index for file failed!";
+            unlink(tempFilePath);
+            break;
+        }
+
         /* rename file */
         err = rename(tempFilePath, filePath);
         if (err < 0) {
@@ -773,6 +885,7 @@ int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
             errStr = strerror(err);
             break;
         }
+
     } while(0);
 
     totalLen += 4 + 4 + strlen(errStr);

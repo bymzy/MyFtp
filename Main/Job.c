@@ -69,8 +69,9 @@ void DoList(int fd, char *data)
     data = readInt(data, &targetLen);
 
     char *dir = (char *)malloc(targetLen + 1);
+    bzero(dir, targetLen + 1);
     memcpy(dir, data, targetLen);
-    printf("request dir is %s\n", dir);
+    printf("request dir is %s, size %d\n", dir, strlen(dir));
 
     /* encode buf by FileManager */
     char *buf = NULL;
@@ -98,10 +99,18 @@ void DoLock(int fd, char *data)
     char *name = malloc(fileNameLen + 1);
     bzero(name, fileNameLen + 1);
     data = readBytes(data, name, fileNameLen);
+
+    uint32_t upload = 0;
+    data = readInt(data, &upload);
     
     char *buf = NULL;
     int sendLen = 0;
-    LockFile(name, lockType, fileType, &buf, &sendLen);
+    if (upload == 0) {
+        LockFile(name, lockType, fileType, &buf, &sendLen);
+    } else {
+        UploadLockFile(name, lockType, fileType, &buf, &sendLen);
+    }
+
     SendAll(fd, buf, sendLen);
     free(buf);
     free(name);
@@ -225,9 +234,18 @@ void DoUnlock(int fd, char *data)
     bzero(name, fileNameLen + 1);
     data = readBytes(data, name, fileNameLen);
     
+    uint32_t upload = 0;
+    data = readInt(data, &upload);
+
     char *buf = NULL;
     int sendLen = 0;
-    UnLockFile(name, lockType, fileType, &buf, &sendLen);
+
+    if (upload == 0) {
+        UnLockFile(name, lockType, fileType, &buf, &sendLen);
+    } else {
+        UploadUnLockFile(name, lockType, fileType, &buf, &sendLen);
+    }
+
     SendAll(fd, buf, sendLen);
     free(buf);
     free(name);

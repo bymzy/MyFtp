@@ -69,6 +69,16 @@ class MyCmd(cmd.Cmd):
         errStr = self.recv_str()
         return err, errStr
 
+    def print_blue(self, msg):
+        print '\033[1;34m%s \033[0m' % msg
+
+    def print_red(self, msg):
+        print '\033[1;31m%s \033[0m' % msg
+
+    def print_green(self, msg):
+        print '\033[1;32m%s \033[0m' % msg
+
+
     ## quit
     def do_quit(self, arg):
         return True
@@ -97,10 +107,11 @@ class MyCmd(cmd.Cmd):
             i = 0
             while i < dirCount:
                 d = self.recv_str()
-                print d
+                self.print_blue(d)
                 i += 1
 
             fileCount = self.recv_int()
+            print ''
             print 'files: '
             i  = 0
             while i < fileCount:
@@ -108,35 +119,39 @@ class MyCmd(cmd.Cmd):
                 print f
                 i += 1
         else:
-            print err, 'failed: ' + errStr
+            self.print_red('failed: ' + errStr)
 
     def help_list(self):
         print 'list files on current dir!'
 
     ## lock
-    def try_lock(self, arg):
+    def try_lock(self, arg, upload = 0):
         cmd = 'lock'
         fileName = arg
         lockType = 2
         fileType = 2
 
         totalLen = 4 + len(cmd)
-        totalLen += 4;
-        totalLen += 4;
+        totalLen += 4
+        totalLen += 4
         totalLen += 4 + len(fileName)
+        totalLen += 4
 
         msg = self.pack_int(totalLen)
         msg += self.pack_str(cmd)
         msg += self.pack_int(lockType)
         msg += self.pack_int(fileType)
         msg += self.pack_str(fileName)
+        msg += self.pack_int(upload)
         self._send(msg)
 
         totalLen = self.recv_int()
         err, errStr = self.recv_err_errstr()
+        if err != 0:
+            self.print_red(errStr)
         return err
 
-    def try_unlock(self, arg):
+    def try_unlock(self, arg, upload = 0):
         cmd = 'unlock'
         fileName = arg
         lockType = 2
@@ -146,16 +161,20 @@ class MyCmd(cmd.Cmd):
         totalLen += 4;
         totalLen += 4;
         totalLen += 4 + len(fileName)
+        totalLen += 4
 
         msg = self.pack_int(totalLen)
         msg += self.pack_str(cmd)
         msg += self.pack_int(lockType)
         msg += self.pack_int(fileType)
         msg += self.pack_str(fileName)
+        msg += self.pack_int(upload)
         self._send(msg)
 
         totalLen = self.recv_int()
         err, errStr = self.recv_err_errstr()
+        if err != 0:
+            self.print_red(errStr)
         return err
 
     def calc_md5(self, fileName):
@@ -189,7 +208,7 @@ class MyCmd(cmd.Cmd):
             md5 = self.recv_str()
             print md5
         else:
-            print err, 'md5 failed', errstr
+            self.print_red('get md5 failed, err: %d, errstr: %s' % (err, errstr))
         return err, md5
 
     def calc_temp_file_name(self, arg ,md5):
@@ -222,7 +241,7 @@ class MyCmd(cmd.Cmd):
 
             err, errStr = self.recv_err_errstr()
             if err != 0:
-                print 'read file failed %s, %s ' % (err, errStr)
+                self.print_red('read file failed %s, %s ' % (err, errStr))
                 break;
 
             dataLen = self.recv_int()
@@ -320,7 +339,7 @@ class MyCmd(cmd.Cmd):
         offset = 0
         print err, errstr
         if err != 0:
-            print errstr
+            self.print_red(errstr)
         else:
             offset = self.recv_64int()
         return err, offset
@@ -366,6 +385,7 @@ class MyCmd(cmd.Cmd):
                 totalLen = self.recv_int()
                 err, errstr = self.recv_err_errstr()
                 if err != 0:
+                    self.print_red(errstr)
                     break
 
                 offset += len(chunk)
@@ -390,7 +410,8 @@ class MyCmd(cmd.Cmd):
 
         totalLen = self.recv_int()
         err, errstr = self.recv_err_errstr()
-        print 'put file end', err, errstr
+        if err != 0:
+            self.print_red(errstr)
         return err
 
     # put file /dir
@@ -409,10 +430,9 @@ class MyCmd(cmd.Cmd):
         offset = 0
 
         while 1:
-#
-#        err = self.try_lock(destFilePath)
-#        if err != 0:
-#            return  
+            err = self.try_lock(destFilePath, 1)
+            if err != 0:
+                return  
 
             md5 = self.calc_md5(srcFilePath)
             size = os.path.getsize(srcFilePath)
@@ -432,10 +452,8 @@ class MyCmd(cmd.Cmd):
             if err != 0:
                 break
 
+            self.try_unlock(destFilePath, 1)
             break
-#
-#        self.try_unlock(arg)
-#
     
     def help_put(self):
         print 'upload file to server, eg: put file /dir'
