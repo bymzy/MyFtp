@@ -85,20 +85,7 @@ int InitFileManager(const char *repo)
 
     SearchDir(repo, root);
 
-#if 0
-    struct AVLTraverseTable *traverseTable = malloc(sizeof(struct AVLTraverseTable));
-    traverse_init(traverseTable, g_file_manager->dirTable);
-    struct Dir *dir = NULL;
-
-    while ((dir = (struct Dir *)traverse_get_next(traverseTable)) != NULL) {
-        printf("loop, get dirname:%s\n", dir->name);
-    }
-    free(traverseTable);
-
-    /*get dir */
-    dir = (struct Dir *)findNode(g_file_manager->dirTable, "/project/")->value;
-    DebugDir(dir);
-#endif
+    return 0;
 }
 
 int SearchDir(const char *dirName, struct Dir *parent)
@@ -208,6 +195,33 @@ int AddIndex(const char *fileName, const char *md5)
     return 0;
 }
 
+int EraseIndex(const char *fileName)
+{
+    struct AVLNode *node = NULL;
+    char *tempFileName = strdup(fileName);
+    char *dirName = addStr(dirname(tempFileName), "/");
+    if (strcmp(dirName,"//") == 0) {
+        dirName[1] = '\0';
+    }
+    struct Dir *parent = NULL;
+    int err = 0;
+
+    /* find parent dir */
+    node = findNode(g_file_manager->dirTable, (void *)dirName);
+    assert(node != NULL);
+
+    parent = (struct Dir*)node->value;
+
+    err = deleteNode(parent->fileTable, (void *)fileName);
+    assert(err == 0);
+       
+
+    free(tempFileName);
+    free(dirName);
+
+    return 0;
+}
+
 int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
     uint32_t dirCount = 0;
     uint32_t fileCount = 0;
@@ -283,12 +297,14 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
             writeIndex = writeString(writeIndex, subdir->name, strlen(subdir->name));
             item = item->next;
         }
+        printf("list file, dir count: %d \n", dir->subDirTable->size);
 
         writeIndex = writeInt(writeIndex, dir->fileTable->size);
         traverse_init(traverseTable, dir->fileTable);
         while ((file = (struct File *)traverse_get_next(traverseTable)) != NULL) {
             writeIndex = writeString(writeIndex, file->name, strlen(file->name));
         }
+        printf("list file, file count: %d \n", dir->fileTable->size);
     }
 
     if (traverseTable != NULL) {
@@ -784,7 +800,6 @@ int WriteFile(char *fileName, char *md5, uint64_t offset, char *data, uint32_t d
     int fd = -1;
     size_t toWrite = dataLen;
     size_t writed = 0;
-    ssize_t size = -1;
 
     char *_tempFilePath = strdup(filePath);
     char *_tempFileName = strdup(fileName);
@@ -842,7 +857,6 @@ int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
     uint32_t totalLen = 0;
     char *writeIndex = NULL;
     char tempFilePath[256] = {'\0'};
-    int fd = -1;
     char *localMd5 = NULL;
 
     char *_tempFilePath = strdup(filePath);
@@ -903,5 +917,40 @@ int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
 
     return err;
 }
+
+int DeleteFile(char *fileName, char **buf, uint32_t *sendLen)
+{
+    int err = 0;
+    char *errStr = "";
+    char *filePath= GetRealPath(fileName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+
+    do {
+        /* unlink file */
+        err = unlink(filePath);
+        assert(err == 0);
+
+        /* erase index */
+        EraseIndex(fileName);
+
+    } while(0);
+
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    if (filePath != NULL) {
+        free(filePath);
+    }
+
+    return err;
+}
+
 
 

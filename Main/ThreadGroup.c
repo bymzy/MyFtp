@@ -59,6 +59,8 @@ void * ThreadEntry(void *arg)
         FreeJob(job);
         job = NULL;
     }
+
+    return NULL;
 }
 
 void FinitThread()

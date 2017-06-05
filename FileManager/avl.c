@@ -207,7 +207,6 @@ static struct AVLNode* _search(struct AVLNode *tree, void *key)
 static struct AVLNode* _insert(struct AVLTable *table, void *key, void *value, int* err)
 {
     struct AVLNode* hot = NULL;
-    struct AVLNode* temp= NULL;
     struct AVLNode** pfound = NULL;
     struct AVLNode* tree = table->root;
     pfound = _search_in(&tree, &hot, key);
@@ -346,6 +345,8 @@ struct AVLNode* _mallocNode(int (*cmp)(const void *leftKey, const void *rightKey
     ret->getHight = _get_hight;
     ret->setHight = _set_hight;
     ret->hight = 0;
+
+    return ret;
 }
 
 struct AVLTable* createTable(CmpType cmp)

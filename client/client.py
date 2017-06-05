@@ -83,8 +83,8 @@ class MyCmd(cmd.Cmd):
     def do_quit(self, arg):
         return True
 
-    def help_quit(self, arg):
-        print 'quit this program'
+    def help_quit(self):
+        print 'quit this program!!!'
 
     ## list
     def do_list(self, arg):
@@ -122,7 +122,7 @@ class MyCmd(cmd.Cmd):
             self.print_red('failed: ' + errStr)
 
     def help_list(self):
-        print 'list files on current dir!'
+        print 'list files on current dir, eg: list /root'
 
     ## lock
     def try_lock(self, arg, upload = 0):
@@ -417,6 +417,9 @@ class MyCmd(cmd.Cmd):
     # put file /dir
     def do_put(self, arg):
         argList = arg.split(' ')
+        if len(argList) != 2:
+            self.print_red("invalid args!!!");
+            return
 
         srcFilePath = argList[0]
         fileName = os.path.basename(srcFilePath)
@@ -429,18 +432,18 @@ class MyCmd(cmd.Cmd):
         destFilePath = dirName + fileName
         offset = 0
 
-        while 1:
-            err = self.try_lock(destFilePath, 1)
-            if err != 0:
-                return  
+        err = self.try_lock(destFilePath, 1)
+        if err != 0:
+            return
 
+        while 1:
             md5 = self.calc_md5(srcFilePath)
             size = os.path.getsize(srcFilePath)
 
             # put file begin
             err, offset = self.try_create(md5, size, destFilePath)
             if err != 0:
-               break 
+                break 
 
             # try send data
             err = self.put_file(srcFilePath, destFilePath, md5, offset, size)
@@ -451,12 +454,49 @@ class MyCmd(cmd.Cmd):
             err = self.put_file_end(destFilePath, md5)
             if err != 0:
                 break
-
-            self.try_unlock(destFilePath, 1)
             break
-    
+
+        self.try_unlock(destFilePath, 1)
+
     def help_put(self):
         print 'upload file to server, eg: put file /dir'
+
+    # del file
+    def do_del(self, arg):
+        argList = arg.split(' ')
+        if len(argList) != 1:
+            self.print_red('invalid args %s' % arg)
+            return None
+
+        fileName = arg
+        err = 0
+        
+        err = self.try_lock(fileName)
+        if err != 0:
+            return
+
+        err = self.del_file(fileName)
+
+    def del_file(self, fileName):
+        cmd = 'delete'
+        print fileName
+
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(fileName)
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_str(fileName)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errstr = self.recv_err_errstr()
+        if err != 0:
+            self.print_red(errstr)
+        return err
+
+    def help_del(self):
+        print 'del file on server, eg: del /root/file'
 
     def help_help(self):
         print 'show help info'

@@ -43,6 +43,8 @@ void ParseJob(int fd, char *buf)
         jobType = Job_write;
     } else if (strcmp(reqType, "put_file_end") == 0) {
         jobType = Job_put_file_end;
+    } else if (strcmp(reqType, "delete") == 0) {
+        jobType = Job_delete;
     } else {
         assert(0);
     }
@@ -71,11 +73,11 @@ void DoList(int fd, char *data)
     char *dir = (char *)malloc(targetLen + 1);
     bzero(dir, targetLen + 1);
     memcpy(dir, data, targetLen);
-    printf("request dir is %s, size %d\n", dir, strlen(dir));
+    printf("request dir is %s, size %ldd\n", dir, strlen(dir));
 
     /* encode buf by FileManager */
     char *buf = NULL;
-    int sendLen = 0;
+    uint32_t sendLen = 0;
     ListDir(dir, &buf, &sendLen);
 
     SendAll(fd, buf, sendLen);
@@ -104,7 +106,7 @@ void DoLock(int fd, char *data)
     data = readInt(data, &upload);
     
     char *buf = NULL;
-    int sendLen = 0;
+    uint32_t sendLen = 0;
     if (upload == 0) {
         LockFile(name, lockType, fileType, &buf, &sendLen);
     } else {
@@ -187,6 +189,9 @@ void DoJob(struct Job *job)
         case Job_put_file_end:
             DoPutFileEnd(job->fd, job->data);
             break;
+        case Job_delete:
+            DoDelete(job->fd, job->data);
+            break;
         default:
             assert(0);
             break;
@@ -238,7 +243,7 @@ void DoUnlock(int fd, char *data)
     data = readInt(data, &upload);
 
     char *buf = NULL;
-    int sendLen = 0;
+    uint32_t sendLen = 0;
 
     if (upload == 0) {
         UnLockFile(name, lockType, fileType, &buf, &sendLen);
@@ -265,8 +270,8 @@ void DoCreate(int fd, char *data)
     data = read64Int(data, &size);
 
     char *buf = NULL;
-    int sendLen = 0;
-    printf("job.c DoCreate!!!, fileName: %s, md5: %s, size: %lld\n", fileName, md5, size);
+    uint32_t sendLen = 0;
+    printf("job.c DoCreate!!!, fileName: %s, md5: %s, size: %lu\n", fileName, md5, size);
     TryCreateFile(fileName, md5, size, &buf, &sendLen);
     SendAll(fd, buf, sendLen);
 
@@ -292,7 +297,7 @@ void DoWrite(int fd, char *data)
 
     //printf("DoWrite, fileName:%s, offset:%lld, date len:%d\n", fileName, offset, dataLen);
     char *buf = NULL;
-    int sendLen = 0;
+    uint32_t sendLen = 0;
     WriteFile(fileName, md5, offset, data, dataLen, &buf, &sendLen);
     SendAll(fd, buf, sendLen);
 
@@ -312,13 +317,29 @@ void DoPutFileEnd(int fd, char *data)
 
     printf("DoPutFileEnd, filename: %s, md5: %s\n", fileName, md5);
     char *buf = NULL;
-    int sendLen = 0;
+    uint32_t sendLen = 0;
     WriteFileEnd(fileName, md5, &buf, &sendLen);
     SendAll(fd, buf, sendLen);
 
     free(buf);
     free(fileName);
     free(md5);
+}
+
+void DoDelete(int fd, char *data)
+{
+    /* get file path */
+    char *fileName = NULL;
+    data = readString(data, &fileName);
+
+    printf("DoDelete, filename: %s", fileName);
+    char *buf = NULL;
+    uint32_t sendLen = 0;
+    DeleteFile(fileName, &buf, &sendLen);
+    SendAll(fd, buf, sendLen);
+
+    free(buf);
+    free(fileName);
 }
 
 

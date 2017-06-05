@@ -64,6 +64,7 @@ int UploadUnLockFile(char *fileName, int lockType, int fileType, char **buf, uin
 int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t *bufLen);
 int WriteFile(char *fileName, char *md5, uint64_t offset, char *data, uint32_t dataLen, char **buf, uint32_t *bufLen);
 int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *sendLen);
+int DeleteFile(char *fileName, char **buf, uint32_t *sendLen);
 int AddIndex(const char *fileName, const char *md5);
 
 char * addStr(const char *left, const char *right);

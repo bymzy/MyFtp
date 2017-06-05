@@ -7,12 +7,17 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 ## Features
 - get files from server side (supported!)
 - put files to server side (supported!)
-- del files on server side (not finished yet)
+- del files on server side (supported!)
 - mkdir on server side (not finished yet)
 - list files on server side (supported!)
 
 ## TODO
 - cmdline support
+- logfile support
+- daemon
+- server ip, port can be assigned from cmdline
+- server work dir can be assigned from cmdline
+- client work dir can be assigned from cmdline
 
 ## Something more
 My job needs to copy file from CenOS to windows, i found i stupid user XFTP to transfer file, so i make this program and write some other scripts to copy automatic.

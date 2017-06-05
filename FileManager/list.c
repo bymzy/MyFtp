@@ -36,6 +36,8 @@ struct ListTable *createListTable()
     table->root = NULL;
     table->tail = NULL;
     table->size = 0;
+
+    return table;
 }
 
 struct ListNode* insertListItem(struct ListTable *table, void *value)

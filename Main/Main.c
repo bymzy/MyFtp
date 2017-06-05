@@ -163,11 +163,10 @@ int main(int argc, char *argv[])
         } else {
             /* fds ready */
             int i = 0;
-            int max = ret;
-            for (i; i < currentUser + 1; ++i) {
+            for (; i < currentUser + 1; ++i) {
                 if (fds[i].fd == listenFd && fds[i].revents & POLLIN) {
                     struct sockaddr_in addr;
-                    int len = 0;
+                    socklen_t len = 0;
                     int client = accept(listenFd, (struct sockaddr*)&addr, &len);
                     if (client < 0) {
                         perror("accpet client falied!");
