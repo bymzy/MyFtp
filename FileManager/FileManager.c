@@ -13,6 +13,7 @@
 #include <memory.h>
 #include <openssl/md5.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #include "FileManager.h"
 #include "avl.h"
@@ -26,12 +27,12 @@ char *g_repo = NULL;
 
 static void Lock()
 {
-
+    pthread_mutex_lock(&s_mutex);
 }
 
 static void UnLock()
 {
-
+    pthread_mutex_unlock(&s_mutex);
 }
 
 char * GetRealPath(const char *fileName)
@@ -61,12 +62,20 @@ char * addStr(const char *left, const char *right)
 
 int InitFileManager(const char *repo)
 {
+    int err = 0;
     /* init avl table */
     if (g_file_manager == NULL) {
         g_file_manager = (struct FileManager*)malloc(sizeof(struct FileManager));
         g_file_manager->dirTable = createTable(charCompare);
         g_file_manager->uploadFileTable = createTable(charCompare);
     }
+
+    /* */
+    pthread_mutexattr_t mutexattr;
+    pthread_mutexattr_init(&mutexattr);
+    pthread_mutexattr_settype(&mutexattr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&s_mutex, &mutexattr);
+    pthread_mutexattr_destroy(&mutexattr);
     
     /* add root to g_file_manager dirTable */
     struct Dir *root = (struct Dir*)malloc(sizeof(struct Dir));
@@ -74,16 +83,36 @@ int InitFileManager(const char *repo)
     root->lock.type = LOCK_null;
     root->lock.userId = -1;
     root->refCount = 0;
-    root->fileTable = NULL;
+    root->fileTable = createTable(charCompare);
     root->name = addStr("/", "");
     root->parent = NULL;
-    root->subDirTable = NULL;
+    root->subDirTable = createListTable();
     printf("dirname: %s\n", root->name);
 
     insertNode(g_file_manager->dirTable, addStr("", root->name), root);
     insertNode(g_file_manager->uploadFileTable, addStr("/", ""), NULL);
 
-    SearchDir(repo, root);
+    err = SearchDir(repo, root);
+
+    return err;
+}
+
+int FinitFileManager()
+{
+    if (g_file_manager != NULL) {
+        if (g_file_manager->dirTable != NULL) {
+            freeTable(g_file_manager->dirTable);
+        }
+
+        if (g_file_manager->dirTable != NULL) {
+            freeTable(g_file_manager->uploadFileTable);
+        }
+
+        free(g_file_manager);
+        g_file_manager = NULL;
+    }
+
+    pthread_mutex_destroy(&s_mutex);
 
     return 0;
 }
@@ -108,7 +137,8 @@ int SearchDir(const char *dirName, struct Dir *parent)
             lstat(entry->d_name, &statbuf);
             if (S_ISDIR(statbuf.st_mode)) {
                 if (strcmp(".", entry->d_name) == 0
-                        || strcmp("..", entry->d_name) == 0) {
+                        || strcmp("..", entry->d_name) == 0
+                        || entry->d_name[0] == '.') {
                     continue;
                 }
 
@@ -118,7 +148,8 @@ int SearchDir(const char *dirName, struct Dir *parent)
                 dir->lock.type = LOCK_null;
                 dir->lock.userId = -1;
                 dir->refCount = 0;
-                dir->fileTable = NULL;
+                dir->fileTable = createTable(charCompare);
+                dir->subDirTable = createListTable();
                 char *temp = addStr(entry->d_name, "/");
                 dir->name = addStr(parent->name, temp);
                 DebugDir(dir);
@@ -126,10 +157,6 @@ int SearchDir(const char *dirName, struct Dir *parent)
                 dir->parent = parent;
 
                 insertNode(g_file_manager->dirTable, strdup(dir->name), dir);
-
-                if (parent->subDirTable == NULL) {
-                    parent->subDirTable = createListTable();
-                }
                 insertListItem(parent->subDirTable, dir);
 
                 char *nextDir = addStr(entry->d_name, "");
@@ -137,11 +164,9 @@ int SearchDir(const char *dirName, struct Dir *parent)
 
                 free(nextDir);
             } else if (S_ISREG(statbuf.st_mode)) {
-                /* add file to dir fileTable*/
-                if (parent->fileTable == NULL) {
-                    parent->fileTable = createTable(charCompare);
+                if (entry->d_name[0] == '.') {
+                    continue;
                 }
-
                 struct File *file = (struct File*)malloc(sizeof(struct File));
                 file->lock.type = LOCK_null;
                 file->lock.userId = -1;
@@ -157,7 +182,7 @@ int SearchDir(const char *dirName, struct Dir *parent)
         chdir("..");
     } while(0);
 
-    return 0;
+    return err;
 }
 
 int AddIndex(const char *fileName, const char *md5)
@@ -170,12 +195,13 @@ int AddIndex(const char *fileName, const char *md5)
         dirName[1] = '\0';
     }
 
+    Lock();
     struct Dir *parent = NULL;
     /* step 1, find parent dir */
     do {
+
         node = findNode(g_file_manager->dirTable, (void *)dirName);
         assert(node != NULL);
-
         parent = (struct Dir*)node->value;
         
         struct File *file = (struct File*)malloc(sizeof(struct File));
@@ -188,6 +214,7 @@ int AddIndex(const char *fileName, const char *md5)
         insertNode(parent->fileTable, strdup(fileName), file);
 
     } while(0);
+    UnLock();
 
     free(tempFileName);
     free(dirName);
@@ -206,6 +233,7 @@ int EraseIndex(const char *fileName)
     struct Dir *parent = NULL;
     int err = 0;
 
+    Lock();
     /* find parent dir */
     node = findNode(g_file_manager->dirTable, (void *)dirName);
     assert(node != NULL);
@@ -215,6 +243,7 @@ int EraseIndex(const char *fileName)
     err = deleteNode(parent->fileTable, (void *)fileName);
     assert(err == 0);
        
+    UnLock();
 
     free(tempFileName);
     free(dirName);
@@ -223,11 +252,8 @@ int EraseIndex(const char *fileName)
 }
 
 int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
-    uint32_t dirCount = 0;
-    uint32_t fileCount = 0;
     int err = 0;
     char *errStr = NULL;
-    uint32_t errStrLen = 0;
     
     struct AVLNode *node = NULL;
     struct Dir *dir = NULL;
@@ -241,20 +267,18 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
     /* errno */
     len += 4;
 
+    Lock();
     /* calc buf len */
     do {
         node = findNode(g_file_manager->dirTable, (void *)dirName);
         if (node == NULL) {
             errStr = "dir not found!";
-            errStrLen = strlen(errStr);
-            len += 4 + errStrLen;
             err = EINVAL;
             break;
         }
 
         dir = (struct Dir *) node->value;
         item = dir->subDirTable->root;
-        dirCount = dir->subDirTable->size;
         /* subdir count */
         len += 4;
         while (item != NULL) {
@@ -265,7 +289,6 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
 
         /* file count */
         len += 4;
-        fileCount = dir->fileTable->size;
         traverseTable = malloc(sizeof(struct AVLTraverseTable));
         traverse_init(traverseTable, dir->fileTable);
         while ((file = (struct File *)traverse_get_next(traverseTable)) != NULL) {
@@ -274,9 +297,9 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
 
         /* errstr */
         errStr = "";
-        errStrLen = 0;
-        len +=4 + errStrLen;
     } while(0);
+
+    len += 4 + strlen(errStr);
 
     /* malloc buf */
     *buf = malloc(len + 4);
@@ -286,8 +309,7 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
     /* encode buf */
     writeIndex = writeInt(writeIndex, len);
     writeIndex = writeInt(writeIndex, err);
-    writeIndex = writeInt(writeIndex, errStrLen);
-    writeIndex = writeBytes(writeIndex, errStr, errStrLen);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
 
     if (err == 0) {
         writeIndex = writeInt(writeIndex, dir->subDirTable->size);
@@ -296,6 +318,7 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
             subdir = (struct Dir*)item->value;
             writeIndex = writeString(writeIndex, subdir->name, strlen(subdir->name));
             item = item->next;
+            //printf("list file , dir name: %s , len: %d \n", subdir->name, strlen(subdir->name));
         }
         printf("list file, dir count: %d \n", dir->subDirTable->size);
 
@@ -303,9 +326,12 @@ int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
         traverse_init(traverseTable, dir->fileTable);
         while ((file = (struct File *)traverse_get_next(traverseTable)) != NULL) {
             writeIndex = writeString(writeIndex, file->name, strlen(file->name));
+            //printf("list file , file name: %s, len: %d \n", file->name, strlen(file->name));
         }
         printf("list file, file count: %d \n", dir->fileTable->size);
     }
+
+    UnLock();
 
     if (traverseTable != NULL) {
         free(traverseTable);
@@ -324,6 +350,7 @@ int UploadLockFile(char *fileName, int lockType, int fileType, char **buf, uint3
     char *writeIndex = NULL;
 
 
+    Lock();
     do {
         /* step 1 , try find in uploadFileTable */
         node = findNode(g_file_manager->uploadFileTable, (void *)fileName);
@@ -336,6 +363,7 @@ int UploadLockFile(char *fileName, int lockType, int fileType, char **buf, uint3
         /* step 2 , insert */
         insertNode(g_file_manager->uploadFileTable, strdup(fileName), NULL);
     } while(0);
+    UnLock();
 
     totalLen += 4 + 4 + strlen(errStr);
     *buf = malloc(totalLen + 4);
@@ -372,6 +400,7 @@ int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *b
         free(temp);
     }
 
+    Lock();
     do {
         /* search dir */
         node = findNode(g_file_manager->dirTable, dirName);
@@ -398,6 +427,7 @@ int LockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t *b
         }
 
     } while(0);
+    UnLock();
 
     if (fileType == FILE_reg && dirName != NULL) {
         free(dirName);
@@ -429,12 +459,14 @@ int UploadUnLockFile(char *fileName, int lockType, int fileType, char **buf, uin
     char *writeIndex = NULL;
 
 
+    Lock();
     do {
         /* step 1 , try find in uploadFileTable */
         node = findNode(g_file_manager->uploadFileTable, (void *)fileName);
         assert(node != NULL);
         deleteNode(g_file_manager->uploadFileTable, (void *)fileName);
     } while(0);
+    UnLock();
 
     totalLen += 4 + 4 + strlen(errStr);
     *buf = malloc(totalLen + 4);
@@ -471,6 +503,7 @@ int UnLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t 
         free(temp);
     }
 
+    Lock();
     do {
         /* search dir */
         node = findNode(g_file_manager->dirTable, dirName);
@@ -497,6 +530,7 @@ int UnLockFile(char *fileName, int lockType, int fileType, char **buf, uint32_t 
         }
 
     } while(0);
+    UnLock();
 
     if (fileType == FILE_reg && dirName != NULL) {
         free(dirName);
@@ -931,8 +965,10 @@ int DeleteFile(char *fileName, char **buf, uint32_t *sendLen)
         err = unlink(filePath);
         assert(err == 0);
 
+        Lock();
         /* erase index */
         EraseIndex(fileName);
+        UnLock();
 
     } while(0);
 

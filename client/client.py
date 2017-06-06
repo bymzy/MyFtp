@@ -6,10 +6,17 @@ import socket
 import struct
 import os
 import hashlib
+from optparse import OptionParser, OptionGroup
 
-SERVERIP = '192.168.76.21'
+SERVERIP = '127.0.0.1'
 SERVERPORT = 3333
 
+class MyParser(OptionParser):
+    def __init__(self):
+        OptionParser.__init__(self)
+
+    def error(self, msg):
+        raise ParseOptionFailed('parse option failed')
 
 class MyCmd(cmd.Cmd):
     def __init__(self):
@@ -19,8 +26,8 @@ class MyCmd(cmd.Cmd):
 
     def Connect(self):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.setblocking(True)
-        self.sock.settimeout(None)
+        #self.sock.setblocking(True)
+        #self.sock.settimeout(None)
         self.sock.connect((SERVERIP, 3333))
 
     def _send(self, msg):
@@ -31,6 +38,9 @@ class MyCmd(cmd.Cmd):
         data = ''
         while toRead > 0:
             temp = self.sock.recv(toRead)
+            if len(temp) == 0:
+                print 'remote close the socket !!!'
+                break
             toRead -= len(temp)
             data += temp
         if len(data) != size:
@@ -103,7 +113,7 @@ class MyCmd(cmd.Cmd):
         err, errStr = self.recv_err_errstr()
         if err == 0:
             dirCount = self.recv_int()
-            print 'dirs: '
+            self.print_green('dirs count %s : ' % dirCount)
             i = 0
             while i < dirCount:
                 d = self.recv_str()
@@ -111,8 +121,7 @@ class MyCmd(cmd.Cmd):
                 i += 1
 
             fileCount = self.recv_int()
-            print ''
-            print 'files: '
+            self.print_green('file count, %s ' % fileCount)
             i  = 0
             while i < fileCount:
                 f = self.recv_str()
@@ -503,7 +512,18 @@ class MyCmd(cmd.Cmd):
 
 
 if __name__ == '__main__':
+    parser = MyParser()
+    parser.add_option('--server_ip', help='server ip', )
+    parser.add_option('--server_port', default=3333, )
+    parser.add_option('-p', '--put', '', help='put file to server')
+    parser.add_option('-l', '--list', help='list dir on server')
+    parser.add_option('-g', '--get', help='download file from server')
+    parser.add_option('-d', '--del', help='del file on server')
+
     cli = MyCmd();
-    cli.cmdloop('welcome To MyFtp!!!');
+    cli.print_blue(parser.get_usage())
+    options, args = parser.parse_args()
+
+    #cli.cmdloop('welcome To MyFtp!!!');
 
 

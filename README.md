@@ -11,13 +11,18 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - mkdir on server side (not finished yet)
 - list files on server side (supported!)
 
+
 ## TODO
-- cmdline support
-- logfile support
-- daemon
-- server ip, port can be assigned from cmdline
-- server work dir can be assigned from cmdline
-- client work dir can be assigned from cmdline
+- DONE cmdline support     
+- DONE logfile support
+- DONE daemon
+- DONE server ip, port can be assigned from cmdline
+- DONE server work dir can be assigned from cmdline
+- DONE client work dir can be assigned from cmdline
+
+## Dependencies
+- openssl-devel
+- libcrypto
 
 ## Something more
 My job needs to copy file from CenOS to windows, i found i stupid user XFTP to transfer file, so i make this program and write some other scripts to copy automatic.

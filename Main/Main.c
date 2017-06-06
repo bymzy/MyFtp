@@ -63,6 +63,7 @@ int ReadNBytes(int fd, char *buf, int len)
 
 int InitListen(char *ip, short port, int *listenFd)
 {
+    int err = 0;
     int fd = -1;
     int reuse = 1;
     fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -74,11 +75,23 @@ int InitListen(char *ip, short port, int *listenFd)
     serverAddr.sin_port = htons(port);
     serverAddr.sin_family = AF_INET;
 
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    assert(bind(fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == 0);
-    assert(listen(fd, BACKLOG) == 0);
+    do {
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        err = bind(fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr));
+        if (err != 0) {
+            printf("bind failed, err: %d, errstr: %s \n", err, strerror(err));
+            break;
+        }
 
-    return 0;
+        err = listen(fd, BACKLOG);
+        if (err != 0) {
+            printf("listen failed, err: %d, errstr: %s \n", err, strerror(err));
+            break;
+        }
+
+    } while(0);
+
+    return err;
 }
 
 void RandomInit(struct pollfd *fds, int total)
@@ -136,10 +149,10 @@ int HandleRead(int fd)
 void Usage()
 {
     char *s = " Usage: MyFtp [options] \n\
-               --work_dir   -w  server working dir \n\
-               --ip         -i  server listen ip \n\
-               --port       -p  server listen port \n\
-               --log_file   -l  server log file \n\
+               --work_dir   -w  REQUIRED server working dir \n\
+               --ip         -i  REQUIRED server listen ip \n\
+               --port       -p  OPTIONAL listen port \n\
+               --log_file   -l  OPTIONAL log file \n\
                \n\
                DESC: \n\
                Simple ftp program made by mzy !\n\
@@ -157,18 +170,19 @@ int main(int argc, char *argv[])
     int currentUser = 0;
     int c = -1;
     int fd = -1;
+    int mustSetCount = 0;
 
     /* parse cmd line */
     struct option long_options[] = {
         {"work_dir", required_argument, 0, 0},
         {"ip", required_argument, 0, 0},
-        {"port", optional_argument, 0, 0},
-        {"log_file", optional_argument, 0, 0},
+        {"port", required_argument, 0, 0},
+        {"log_file", required_argument, 0, 0},
         {0,0,0,0}
     };
 
     while (1) {
-        c = getopt_long(argc, argv, "w:i:p:l:", long_options, NULL);
+        c = getopt_long(argc, argv, ":w:i:p:l:", long_options, NULL);
         if (-1 == c) {
             break;
         }
@@ -176,9 +190,11 @@ int main(int argc, char *argv[])
         switch (c) {
             case 'w':
                 g_repo = optarg;
+                mustSetCount++;
                 break;
             case 'i':
                 SERVERIP = optarg;
+                mustSetCount++;
                 break;
             case 'p':
                 PORT = atoi(optarg);
@@ -196,9 +212,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (err != 0) {
+    if (err != 0 || mustSetCount < 2) {
         Usage();
-        return err;
+        goto ERROR;
     }
 
     /* check dir exists */
@@ -207,28 +223,28 @@ int main(int argc, char *argv[])
     if (err != 0) {
         printf("invalid repo dir %s \n", g_repo);
         err = EINVAL;
-        return err;
+        goto ERROR;
     }
     
     if (PORT <= 0 || PORT >= 65536) {
         printf("invalid port %d \n", PORT);
         err = EINVAL;
-        return err;
+        goto ERROR;
     }
 
     struct in_addr addrt;
     err = inet_aton(SERVERIP, &addrt);
     if (err == 0) {
         printf("invalid ip %s \n", SERVERIP);
-        return err;
+        goto ERROR;
     }
 
     /* try open log file */
-    fd = open(LOGFILE, O_RDWR | O_CREAT | O_APPEND, 0644);
+    fd = open(LOGFILE, O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         err = errno;
         printf("open log file %s failed, errstr: %s \n", LOGFILE, strerror(err));
-        return err;
+        goto ERROR;
     }
 
     /*
@@ -236,18 +252,26 @@ int main(int argc, char *argv[])
     if (err != 0) {
         err = errno;
         printf("make daemon failed, errstr: %s \n", strerror(err));
-        return err;
+        goto ERROR;
     }
-    */
 
     close(1);
     close(2);
     dup(fd);
     dup(fd);
+    */
 
-    InitFileManager(g_repo);
+    err = InitFileManager(g_repo);
+    if (err != 0) {
+        printf("InitFileManager failed!!! err: %d \n", err);
+        goto FailInitFileManager;
+    }
+
     InitThreads();
-    InitListen(SERVERIP, PORT, &listenFd);
+    err = InitListen(SERVERIP, PORT, &listenFd);
+    if (err != 0) {
+        goto FailListen;
+    }
 
     fds = (struct pollfd *)malloc(sizeof(struct pollfd) * (MAXUSER + 1));
     assert(fds != NULL);
@@ -302,6 +326,11 @@ int main(int argc, char *argv[])
     /* TODO frees */
     free(fds);
 
+FailListen:
+    FinitThread();
+FailInitFileManager:
+
+ERROR:
     return err;
 }
 

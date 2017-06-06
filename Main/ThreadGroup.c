@@ -75,6 +75,13 @@ void FinitThread()
         pthread_join(threads[i].tid, NULL);
     }
 
+    pthread_mutex_lock(&mutex);
+    while (head != NULL) {
+        FreeJob(head);
+        head = head->next;
+    }
+    pthread_mutex_unlock(&mutex);
+
     free(threads);
 }
 

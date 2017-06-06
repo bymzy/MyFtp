@@ -18,15 +18,15 @@ struct ListNode* _found_tail(struct ListNode *root)
 
 struct ListNode* _insert(struct ListTable *table, void *value)
 {
-    struct ListNode *tail = table->tail;
+    struct ListNode **tail = &table->tail;
     struct ListNode *new = (struct ListNode*)malloc(sizeof(struct ListNode));
     new->next = NULL;
-    new->prev = tail;
+    new->prev = *tail;
     new->insert = _insert;
     new->value = value;
 
-    tail->next = new;
-    tail = new;
+    (*tail)->next = new;
+    *tail = new;
     return new;
 }
 
