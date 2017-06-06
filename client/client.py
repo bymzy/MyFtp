@@ -7,6 +7,7 @@ import struct
 import os
 import hashlib
 from optparse import OptionParser, OptionGroup
+import sys
 
 SERVERIP = '127.0.0.1'
 SERVERPORT = 3333
@@ -14,9 +15,6 @@ SERVERPORT = 3333
 class MyParser(OptionParser):
     def __init__(self):
         OptionParser.__init__(self)
-
-    def error(self, msg):
-        raise ParseOptionFailed('parse option failed')
 
 class MyCmd(cmd.Cmd):
     def __init__(self):
@@ -477,14 +475,16 @@ class MyCmd(cmd.Cmd):
             self.print_red('invalid args %s' % arg)
             return None
 
-        fileName = arg
         err = 0
         
-        err = self.try_lock(fileName)
-        if err != 0:
-            return
+        for fileName in argList:
+            err = self.try_lock(fileName)
+            if err != 0:
+                return
 
-        err = self.del_file(fileName)
+            err = self.del_file(fileName)
+            if err != 0:
+                return
 
     def del_file(self, fileName):
         cmd = 'delete'
@@ -510,20 +510,81 @@ class MyCmd(cmd.Cmd):
     def help_help(self):
         print 'show help info'
 
+def command_list():
+    print_green('avaliable list: put, list , get , del')
+
+def print_blue(msg):
+    print '\033[1;34m%s \033[0m' % msg
+
+def print_red(msg):
+    print '\033[1;31m%s \033[0m' % msg
+
+def print_green(msg):
+    print '\033[1;32m%s \033[0m' % msg
 
 if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print 'not enough arg count!'
+        exit(1)
+
+    mod = 'cmd'
+    command = sys.argv[1]
     parser = MyParser()
-    parser.add_option('--server_ip', help='server ip', )
-    parser.add_option('--server_port', default=3333, )
-    parser.add_option('-p', '--put', '', help='put file to server')
-    parser.add_option('-l', '--list', help='list dir on server')
-    parser.add_option('-g', '--get', help='download file from server')
-    parser.add_option('-d', '--del', help='del file on server')
+    parser.add_option('-i', '--server_ip', help='server ip', )
+    parser.add_option('-p', '--server_port', default=3333, )
+
+    if command == 'put':
+        parser.add_option('-f', '--file', help='src file try put to server')
+        parser.add_option('-d', '--dir', help='dest dir on server')
+
+    elif command == 'list':
+        parser.add_option('-d', '--dir', help='dest dir on server')
+
+    elif command == 'get':
+        parser.add_option('-f', '--file', help='dest dir on server')
+
+    elif command == 'del':
+        parser.add_option('-f', '--file', help='dest dir on server, --file file1,file2,file3')
+
+    elif command == 'inter':
+        mod = 'inter'
+
+    else:
+        print_red('invalid command !!!')
+        print ''
+        command_list()
+        exit(1)
+
+    options, args = parser.parse_args(sys.argv[2:])
+
+    if options.server_ip == None:
+        print_red('server ip not assigned!!!')
+        print ''
+        parser.print_help()
+        exit(1)
+
+    SERVERIP = options.server_ip
+    SERVERPORT = options.server_port
 
     cli = MyCmd();
-    cli.print_blue(parser.get_usage())
-    options, args = parser.parse_args()
+    if command == 'put':
+        srcFile = options.file
+        destDir = options.dir
+        cli.do_put('%s %s' % (srcFile, destDir))
 
-    #cli.cmdloop('welcome To MyFtp!!!');
+    elif command == 'list':
+        destDir = options.dir
+        cli.do_list(destDir)
+
+    elif command == 'get':
+        srcFile = options.file
+        cli.do_get(srcFile)
+
+    elif command == 'del':
+        srcFile = options.file
+        cli.do_del(' '.join(srcFile.split(',')))
+
+    elif command == 'inter':
+        cli.cmdloop('welcome To MyFtp!!!');
 
 
