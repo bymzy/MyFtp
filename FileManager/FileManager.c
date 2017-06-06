@@ -22,7 +22,7 @@
 
 static struct FileManager *g_file_manager = NULL;
 static pthread_mutex_t s_mutex;
-char g_repo[200];
+char *g_repo = NULL;
 
 static void Lock()
 {

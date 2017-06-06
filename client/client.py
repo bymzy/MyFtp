@@ -7,7 +7,7 @@ import struct
 import os
 import hashlib
 
-SERVERIP = '192.168.1.111'
+SERVERIP = '192.168.76.21'
 SERVERPORT = 3333
 
 

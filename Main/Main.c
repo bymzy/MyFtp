@@ -13,17 +13,21 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <memory.h>
+#include <unistd.h>
+#include <getopt.h>
+#include <sys/stat.h>
+
 #include "Job.h"
 #include "ThreadGroup.h"
 #include "../FileManager/FileManager.h"
 
-#define PORT 3333
-#define SERVERIP "192.168.1.111"
-#define BACKLOG 10
-#define MAXUSER 1024
-#define POLLTIMEOUT 100
+static short PORT = 3333;
+static char *SERVERIP = "127.0.0.1";
+static int BACKLOG = 10;
+static uint32_t MAXUSER = 1024;
+static int POLLTIMEOUT = 100;
+static char *LOGFILE = "/var/log/myftp";
 
-extern char g_repo[200];
 struct pollfd *fds = NULL;
 
 int ReadNBytes(int fd, char *buf, int len)
@@ -72,7 +76,7 @@ int InitListen(char *ip, short port, int *listenFd)
 
     setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
     assert(bind(fd, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == 0);
-    assert(listen(fd, 10) == 0);
+    assert(listen(fd, BACKLOG) == 0);
 
     return 0;
 }
@@ -129,6 +133,21 @@ int HandleRead(int fd)
     return err;
 }
 
+void Usage()
+{
+    char *s = " Usage: MyFtp [options] \n\
+               --work_dir   -w  server working dir \n\
+               --ip         -i  server listen ip \n\
+               --port       -p  server listen port \n\
+               --log_file   -l  server log file \n\
+               \n\
+               DESC: \n\
+               Simple ftp program made by mzy !\n\
+               ";
+
+    printf("%s\n", s);
+}
+
 int main(int argc, char *argv[])
 {
     /* TODO parse args */
@@ -136,9 +155,96 @@ int main(int argc, char *argv[])
     int ret = 0;
     int listenFd = -1;
     int currentUser = 0;
+    int c = -1;
+    int fd = -1;
 
-    bzero(g_repo, 200);
-    strcpy(g_repo, "/root/src");
+    /* parse cmd line */
+    struct option long_options[] = {
+        {"work_dir", required_argument, 0, 0},
+        {"ip", required_argument, 0, 0},
+        {"port", optional_argument, 0, 0},
+        {"log_file", optional_argument, 0, 0},
+        {0,0,0,0}
+    };
+
+    while (1) {
+        c = getopt_long(argc, argv, "w:i:p:l:", long_options, NULL);
+        if (-1 == c) {
+            break;
+        }
+
+        switch (c) {
+            case 'w':
+                g_repo = optarg;
+                break;
+            case 'i':
+                SERVERIP = optarg;
+                break;
+            case 'p':
+                PORT = atoi(optarg);
+                break;
+            case 'l':
+                LOGFILE = optarg;
+                break;
+            default:
+                err = EINVAL;
+                break;
+        };
+        
+        if (err != 0) {
+            break;
+        }
+    }
+
+    if (err != 0) {
+        Usage();
+        return err;
+    }
+
+    /* check dir exists */
+    struct stat st;
+    err = stat(g_repo, &st);
+    if (err != 0) {
+        printf("invalid repo dir %s \n", g_repo);
+        err = EINVAL;
+        return err;
+    }
+    
+    if (PORT <= 0 || PORT >= 65536) {
+        printf("invalid port %d \n", PORT);
+        err = EINVAL;
+        return err;
+    }
+
+    struct in_addr addrt;
+    err = inet_aton(SERVERIP, &addrt);
+    if (err == 0) {
+        printf("invalid ip %s \n", SERVERIP);
+        return err;
+    }
+
+    /* try open log file */
+    fd = open(LOGFILE, O_RDWR | O_CREAT | O_APPEND, 0644);
+    if (fd < 0) {
+        err = errno;
+        printf("open log file %s failed, errstr: %s \n", LOGFILE, strerror(err));
+        return err;
+    }
+
+    /*
+    err = daemon(0, 0);
+    if (err != 0) {
+        err = errno;
+        printf("make daemon failed, errstr: %s \n", strerror(err));
+        return err;
+    }
+    */
+
+    close(1);
+    close(2);
+    dup(fd);
+    dup(fd);
+
     InitFileManager(g_repo);
     InitThreads();
     InitListen(SERVERIP, PORT, &listenFd);
@@ -175,11 +281,6 @@ int main(int argc, char *argv[])
 
                     currentUser++;
                     SetNonBlock(client);
-#if 0
-                    fds[currentUser].fd = client;
-                    fds[currentUser].events = POLLIN | POLLRDHUP;
-                    fds[currentUser].revents = 0;
-#endif
                     SetEvent(fds, currentUser, client, POLLIN | POLLRDHUP);
                     printf("accept client %d, current user %d\n", client, currentUser);
                 } else if (fds[i].revents & POLLRDHUP) {

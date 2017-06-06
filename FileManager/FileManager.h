@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include "list.h"
 
-extern char g_repo[];
+extern char * g_repo;
 
 enum FileType {
     FILE_null = 0,
