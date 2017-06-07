@@ -8,8 +8,10 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - get files from server side (supported!)
 - put files to server side (supported!)
 - del files on server side (supported!)
-- mkdir on server side (not finished yet)
 - list files on server side (supported!)
+- mkdir on server side (not finished yet)
+- deldir on server side (not finished yet)
+- chdir on server side (not finished yet, this is useful in interactive mode!) 
 
 
 ## TODO

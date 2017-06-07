@@ -17,6 +17,8 @@ class MyParser(OptionParser):
         OptionParser.__init__(self)
 
 class MyCmd(cmd.Cmd):
+    currentDir = '/'
+
     def __init__(self):
         cmd.Cmd.__init__(self)
         self.prompt = '->'
@@ -488,7 +490,6 @@ class MyCmd(cmd.Cmd):
 
     def del_file(self, fileName):
         cmd = 'delete'
-        print fileName
 
         totalLen = 4 + len(cmd)
         totalLen += 4 + len(fileName)
@@ -507,11 +508,55 @@ class MyCmd(cmd.Cmd):
     def help_del(self):
         print 'del file on server, eg: del /root/file'
 
+    def op_dir(self, dirName, opCode):
+        cmd = 'opdir'
+
+        totalLen = 4 + len(cmd)
+        totalLen += 4 + len(dirName)
+        totalLen += 4 + len(opCode)
+
+        msg = self.pack_int(totalLen)
+        msg += self.pack_str(cmd)
+        msg += self.pack_sr(opCode)
+        self._send(msg)
+
+        totalLen = self.recv_int()
+        err, errstr = self.recv_err_errstr()
+        if err != 0:
+            self.print_red(errstr)
+        return err
+
+    #mkdir on server 
+    #return success if dir exists , create dir if not
+    def do_mkdir(self, dirName):
+        err = self.op_dir(dirName, 'mkdir') 
+
+    def help_mkdir(self):
+        print 'mkdir on server'
+
+    #del dir on server
+    #return success if dir exists and dir empty
+    def do_deldir(self, dirName):
+        err = self.op_dir(dirName, 'deldir') 
+
+    def help_deldir(self):
+        print 'deldir on server'
+        
+    #change dir on server
+    #return success if dir exists
+    def do_chdir(self, dirName):
+        err = self.op_dir(dirName, 'chdir') 
+        if err == 0:
+            self.currentDir = dirName
+
+    def help_chkdir(self):
+        print 'chdir on server'
+
     def help_help(self):
         print 'show help info'
 
 def command_list():
-    print_green('avaliable list: put, list , get , del')
+    print_green('avaliable list: put, list , get , del, mkdir, deldir, chdir ')
 
 def print_blue(msg):
     print '\033[1;34m%s \033[0m' % msg
@@ -545,6 +590,15 @@ if __name__ == '__main__':
 
     elif command == 'del':
         parser.add_option('-f', '--file', help='dest dir on server, --file file1,file2,file3')
+
+    elif command == 'mkdir':
+        parser.add_option('-d', '--dir', help='dest dir on server')
+
+    elif command == 'deldir':
+        parser.add_option('-d', '--dir', help='dest dir on server')
+
+    elif command == 'chdir':
+        parser.add_option('-d', '--dir', help='dest dir on server')
 
     elif command == 'inter':
         mod = 'inter'
@@ -583,6 +637,18 @@ if __name__ == '__main__':
     elif command == 'del':
         srcFile = options.file
         cli.do_del(' '.join(srcFile.split(',')))
+
+    elif command == 'mkdir':
+        destDir = options.dir
+        cli.do_mkdir(destDir)
+
+    elif command == 'deldir':
+        destDir = options.dir
+        cli.do_deldir(destDir)
+
+    elif command == 'chdir':
+        destDir = options.dir
+        cli.do_chdir(destDir)
 
     elif command == 'inter':
         cli.cmdloop('welcome To MyFtp!!!');

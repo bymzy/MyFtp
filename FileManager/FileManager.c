@@ -988,5 +988,20 @@ int DeleteFile(char *fileName, char **buf, uint32_t *sendLen)
     return err;
 }
 
+int MakeDir(char *dirName, char **buf, uint32_t *sendLen)
+{
+
+}
+
+int DeleteDir(char *dirName, char **buf, uint32_t *sendLen)
+{
+
+}
+
+/* check dir exists and return err */
+int ChangeDir(char *dirName, char **buf, uint32_t *sendLen)
+{
+
+}
 
 

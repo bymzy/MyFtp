@@ -45,6 +45,8 @@ void ParseJob(int fd, char *buf)
         jobType = Job_put_file_end;
     } else if (strcmp(reqType, "delete") == 0) {
         jobType = Job_delete;
+    } else if (strcmp(reqType, "opdir") == 0) {
+        jobType = Job_dir;
     } else {
         assert(0);
     }
@@ -191,6 +193,9 @@ void DoJob(struct Job *job)
             break;
         case Job_delete:
             DoDelete(job->fd, job->data);
+            break;
+        case Job_dir:
+            DoOpDir(job->fd, job->data);
             break;
         default:
             assert(0);
@@ -342,5 +347,35 @@ void DoDelete(int fd, char *data)
     free(fileName);
 }
 
+void DoOpDir(int fd, char *data)
+{
+    /* get dir name */
+    char *dirName = NULL;
+    data = readString(data, &dirName);
+
+    char *opCode = NULL;
+    data = readString(data, &opCode);
+
+    printf("OpDir, dirname:%s, opCode:%s \n", dirName, opCode);
+    char *buf = NULL;
+    uint32_t sendLen = 0;
+
+    if (strcmp(opCode, "mkdir") == 0) {
+        MakeDir(dirName, &buf, &sendLen);
+    } else if (strcmp(opCode, "deldir") == 0) {
+        DeleteDir(dirName, &buf, &sendLen);
+    } else if (strcmp(opCode, "chdir") == 0) {
+        ChangeDir(dirName, &buf, &sendLen);
+    } else {
+        printf("invalid dir opcode, dirname:%s, opcode:%s \n", dirName, opCode);
+        assert(0);
+    }
+
+    SendAll(fd, buf, sendLen);
+
+    free(dirName);
+    free(opCode);
+    free(buf);
+}
 
 

@@ -15,7 +15,8 @@ enum JobKind {
     Job_create, /* create file */
     Job_write, /* write file */
     Job_put_file_end,
-    Job_delete,
+    Job_delete, /* del file */
+    Job_dir,  /* dir op */
 };
 
 struct Job {
@@ -42,6 +43,8 @@ void DoCreate(int fd, char *data);
 void DoWrite(int fd, char *data);
 void DoPutFileEnd(int fd, char *data);
 void DoDelete(int fd, char *data);
+void DoOpDir(int fd, char *data);
+
 
 #endif
 
