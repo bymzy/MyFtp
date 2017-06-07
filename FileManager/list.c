@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <assert.h>
+#include <errno.h>
 #include "list.h"
 
 struct ListNode* _found_tail(struct ListNode *root)
@@ -59,6 +60,52 @@ struct ListNode* insertListItem(struct ListTable *table, void *value)
         return table->root->insert(table, value);
     }
 }
+
+int deleteListItem(struct ListTable *table, void *value)
+{
+    int err = ENOENT;
+    struct ListNode *idx = NULL;
+    do {
+        if (table->root == NULL) {
+            break;
+        }
+
+        idx = table->root;
+        while (idx != NULL) {
+           if (idx->value == value) {
+               err = 0;
+
+               if (idx->prev != NULL) {
+                   idx->prev->next = idx->next;
+               }
+
+               if (idx->next != NULL) {
+                   idx->next->prev = idx->prev;
+               }
+
+               if (idx == table->root) {
+                   table->root = idx->next;
+               }
+
+               if (idx == table->tail) {
+                   table->tail = idx->prev;
+               }
+
+               --table->size;
+
+               free(idx);
+               break;
+           }
+
+           idx = idx->next;
+        }
+    } while(0);
+
+    return err;
+}
+
+
+
 
 
 

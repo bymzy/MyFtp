@@ -185,7 +185,7 @@ int SearchDir(const char *dirName, struct Dir *parent)
     return err;
 }
 
-int AddIndex(const char *fileName, const char *md5)
+int AddFileIndex(const char *fileName, const char *md5)
 {
 
     struct AVLNode *node = NULL;
@@ -222,7 +222,7 @@ int AddIndex(const char *fileName, const char *md5)
     return 0;
 }
 
-int EraseIndex(const char *fileName)
+int EraseFileIndex(const char *fileName)
 {
     struct AVLNode *node = NULL;
     char *tempFileName = strdup(fileName);
@@ -249,6 +249,99 @@ int EraseIndex(const char *fileName)
     free(dirName);
 
     return 0;
+}
+
+int AddDirIndex(const char *dirName)
+{
+    int err = 0;
+    struct Dir *parent = NULL;
+    struct AVLNode *node = NULL;
+    char *parentName = strdup(dirName);
+    int i = strlen(parentName) - 2;
+    for (;i >= 1; --i) {
+        if (parentName[i - 1] == '/') {
+            parentName[i] = '\0';
+            break;
+        }
+    }
+
+    struct Dir * dir = (struct Dir*)malloc(sizeof(struct Dir));
+    dir->type = FILE_dir;
+    dir->lock.type = LOCK_null;
+    dir->lock.userId = -1;
+    dir->refCount = 0;
+    dir->fileTable = createTable(charCompare);
+    dir->name = strdup(dirName);
+    dir->parent = NULL;
+    dir->subDirTable = createListTable();
+
+    Lock();
+    do {
+        node = findNode(g_file_manager->dirTable, (void *)parentName);
+        if (node == NULL) {
+            err = ENOENT;
+            printf("try add dir index, but parent index not exists \n");
+            break;
+        }
+
+        parent = (struct Dir*)node->value;
+        dir->parent = parent;
+        
+        insertNode(g_file_manager->dirTable, strdup(dirName), dir);
+        insertListItem(parent->subDirTable, dir);
+    } while(0);
+    
+    UnLock();
+
+    free(parentName);
+
+    return err;
+}
+
+int EraseDirIndex(const char *dirName)
+{
+    int err = 0;
+    struct Dir *parent = NULL;
+    struct Dir *dir= NULL;
+    struct AVLNode *node = NULL;
+
+    char *parentName = strdup(dirName);
+    int i = strlen(parentName) - 2;
+    for (;i >= 1; --i) {
+        if (parentName[i - 1] == '/') {
+            parentName[i] = '\0';
+            break;
+        }
+    }
+
+    Lock();
+    do {
+        node = findNode(g_file_manager->dirTable, (void *)dirName);
+        if (node == NULL) {
+            err = ENOENT;
+            break;
+        }
+        dir = (struct Dir*)node->value;
+
+        node = findNode(g_file_manager->dirTable, (void *)parentName);
+        if (node == NULL) {
+            err = ENOENT;
+            break;
+        }
+        parent = (struct Dir*)node->value;
+
+        err = deleteListItem(parent->subDirTable, dir);
+        assert(err == 0);
+        
+        err = deleteNode(g_file_manager->dirTable, (void *)dirName);
+        assert(err == 0);
+    } while(0);
+    
+    UnLock();
+
+    free(parentName);
+
+    return err;
 }
 
 int ListDir(const char *dirName, char **buf, uint32_t *bufLen) {
@@ -919,7 +1012,7 @@ int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *bufLen)
         }
 
         /* add index */
-        err = AddIndex(fileName, md5);
+        err = AddFileIndex(fileName, md5);
         if (err != 0) {
             errStr = "add index for file failed!";
             unlink(tempFilePath);
@@ -967,7 +1060,7 @@ int DeleteFile(char *fileName, char **buf, uint32_t *sendLen)
 
         Lock();
         /* erase index */
-        EraseIndex(fileName);
+        EraseFileIndex(fileName);
         UnLock();
 
     } while(0);
@@ -990,17 +1083,150 @@ int DeleteFile(char *fileName, char **buf, uint32_t *sendLen)
 
 int MakeDir(char *dirName, char **buf, uint32_t *sendLen)
 {
+    struct AVLNode *node = NULL;
+    int err = 0;
+    char *errStr = "";
+    char *realDir = GetRealPath(dirName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
 
+    Lock();
+    do {
+        /* check whether dir exists */
+        node = findNode(g_file_manager->dirTable, (void *)dirName);
+        if (node != NULL) {
+            break;
+        }
+
+        /* add dir index */
+        err = AddDirIndex(dirName);
+        if (err != 0) {
+            errStr = "add dir index failed!";
+            break;
+        }
+              
+        /* try mkdir */
+        struct stat st;
+        err = stat(realDir, &st);
+        if (err == 0) {
+            /* dir is not created by client */
+            break;
+        }
+
+        err = mkdir(realDir, 0644);
+        if (err != 0) {
+            err = errno;
+            errStr = strerror(err);
+            break;
+        }
+
+    } while(0);
+    UnLock();
+
+    /* encode response */
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    printf("makedir, err:%d, errstr:%s, totalLen:%d \n", err, errStr, totalLen);
+    free(realDir);
+
+    return err;
 }
 
 int DeleteDir(char *dirName, char **buf, uint32_t *sendLen)
 {
+    struct AVLNode *node = NULL;
+    int err = 0;
+    char *errStr = "";
+    char *realDir = GetRealPath(dirName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
 
+    Lock();
+    do {
+        /* check whether dir exists */
+        node = findNode(g_file_manager->dirTable, (void *)dirName);
+        if (node == NULL) {
+            err = ENOENT;
+            errStr = strerror(err);
+            break;
+        }
+
+        /* delete dir index */
+        err = EraseDirIndex(dirName);
+        assert(err == 0);
+
+        /* try mkdir */
+        struct stat st;
+        err = stat(realDir, &st);
+        if (err != 0) {
+            /* dir is not created by client */
+            break;
+        }
+
+        /* delete filesystem dir */
+        err = rmdir(realDir);
+        assert(err == 0);
+
+    } while(0);
+    UnLock();
+
+    /* encode response */
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    printf("deldir, err:%d, errstr:%s, totalLen:%d \n", err, errStr, totalLen);
+    free(realDir);
+
+    return err;
 }
 
 /* check dir exists and return err */
 int ChangeDir(char *dirName, char **buf, uint32_t *sendLen)
 {
+    struct AVLNode *node = NULL;
+    int err = 0;
+    char *errStr = "";
+    char *realDir = GetRealPath(dirName);
+    uint32_t totalLen = 0;
+    char *writeIndex = NULL;
+
+    Lock();
+    /* check whether dir exists */
+    node = findNode(g_file_manager->dirTable, (void *)dirName);
+    if (node == NULL) {
+        err = ENOENT;
+        errStr = strerror(err);
+    }
+
+    UnLock();
+
+    /* encode response */
+    totalLen += 4 + 4 + strlen(errStr);
+    *buf = malloc(totalLen + 4);
+    writeIndex = *buf;
+    *sendLen = totalLen + 4;
+
+    writeIndex = writeInt(writeIndex, totalLen);
+    writeIndex = writeInt(writeIndex, err);
+    writeIndex = writeString(writeIndex, errStr, strlen(errStr));
+
+    printf("change dir, err:%d, errstr:%s, totalLen:%d \n", err, errStr, totalLen);
+    free(realDir);
+
+    return err;
 
 }
 

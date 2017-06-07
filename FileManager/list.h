@@ -21,6 +21,7 @@ struct ListTable {
 
 struct ListTable* createListTable();
 struct ListNode* insertListItem(struct ListTable *l, void *value);
+int deleteListItem(struct ListTable *table, void *value);
 
 #endif
 

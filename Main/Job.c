@@ -353,6 +353,12 @@ void DoOpDir(int fd, char *data)
     char *dirName = NULL;
     data = readString(data, &dirName);
 
+    if (dirName[strlen(dirName) - 1] != '/') {
+        char *temp = dirName;
+        dirName = addStr(dirName, "/");
+        free(temp);
+    }
+
     char *opCode = NULL;
     data = readString(data, &opCode);
 

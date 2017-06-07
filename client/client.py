@@ -88,6 +88,14 @@ class MyCmd(cmd.Cmd):
     def print_green(self, msg):
         print '\033[1;32m%s \033[0m' % msg
 
+    def get_real_dir(self, dirName):
+        if dirName[-1] != '/':
+            dirName = '%s/' % dirName
+        
+        if dirName[0] != '/':
+            dirName = ''.join((self.currentDir, dirName))
+
+        return dirName
 
     ## quit
     def do_quit(self, arg):
@@ -97,7 +105,18 @@ class MyCmd(cmd.Cmd):
         print 'quit this program!!!'
 
     ## list
-    def do_list(self, arg):
+    def do_list(self, dirName):
+        if len(dirName) > 0 and dirName[-1] != '/':
+            dirName = '%s/' % dirName
+        
+        if len(dirName) == 0:
+            dirName = self.currentDir
+        elif dirName[0] != '/':
+            dirName = ''.join((self.currentDir, dirName))
+
+        self._do_list(dirName)
+
+    def _do_list(self, arg):
         # send command
         cmd = 'list'
         totalLen = 4 + len(cmd)
@@ -120,8 +139,9 @@ class MyCmd(cmd.Cmd):
                 self.print_blue(d)
                 i += 1
 
+            print ''
             fileCount = self.recv_int()
-            self.print_green('file count, %s ' % fileCount)
+            self.print_green('file count %s :' % fileCount)
             i  = 0
             while i < fileCount:
                 f = self.recv_str()
@@ -129,6 +149,7 @@ class MyCmd(cmd.Cmd):
                 i += 1
         else:
             self.print_red('failed: ' + errStr)
+        return err
 
     def help_list(self):
         print 'list files on current dir, eg: list /root'
@@ -425,19 +446,29 @@ class MyCmd(cmd.Cmd):
 
     # put file /dir
     def do_put(self, arg):
+        if len(arg) == 0:
+            return False
+
         argList = arg.split(' ')
-        if len(argList) != 2:
+        if len(argList) > 2:
             self.print_red("invalid args!!!");
-            return
+            return False
+        elif len(argList) == 1:
+            dirName = self.currentDir
+        elif len(argList) == 2:
+            dirName = argList[1]
 
         srcFilePath = argList[0]
-        fileName = os.path.basename(srcFilePath)
-        dirName = argList[1]
+
+        self._do_put(srcFilePath, dirName)
+
+    def _do_put(self, srcFilePath, dirName):
         destFilePath = ''
 
         if dirName[-1] != '/':
             dirName += '/'
 
+        fileName = os.path.basename(srcFilePath)
         destFilePath = dirName + fileName
         offset = 0
 
@@ -473,20 +504,29 @@ class MyCmd(cmd.Cmd):
     # del file
     def do_del(self, arg):
         argList = arg.split(' ')
-        if len(argList) != 1:
+
+        for i in range(len(argList)):
+            if argList[i][0] != '/':
+                argList[i] = self.currentDir + argList[i]
+        
+        self._do_del(' '.join(argList))
+
+    def _do_del(self, arg):
+        argList = arg.split(' ')
+        if len(argList) < 1:
             self.print_red('invalid args %s' % arg)
-            return None
+            return 2
 
         err = 0
         
         for fileName in argList:
             err = self.try_lock(fileName)
             if err != 0:
-                return
+                return 1
 
             err = self.del_file(fileName)
             if err != 0:
-                return
+                return 1
 
     def del_file(self, fileName):
         cmd = 'delete'
@@ -517,7 +557,8 @@ class MyCmd(cmd.Cmd):
 
         msg = self.pack_int(totalLen)
         msg += self.pack_str(cmd)
-        msg += self.pack_sr(opCode)
+        msg += self.pack_str(dirName)
+        msg += self.pack_str(opCode)
         self._send(msg)
 
         totalLen = self.recv_int()
@@ -529,7 +570,16 @@ class MyCmd(cmd.Cmd):
     #mkdir on server 
     #return success if dir exists , create dir if not
     def do_mkdir(self, dirName):
+        if len(dirName) == 0:
+            print 'invalid dirName'
+            return None
+
+        dirName = self.get_real_dir(dirName)
+        err = self._do_mkdir(dirName) 
+
+    def _do_mkdir(self, dirName):
         err = self.op_dir(dirName, 'mkdir') 
+        return err
 
     def help_mkdir(self):
         print 'mkdir on server'
@@ -537,7 +587,16 @@ class MyCmd(cmd.Cmd):
     #del dir on server
     #return success if dir exists and dir empty
     def do_deldir(self, dirName):
+        if len(dirName) == 0:
+            print 'invalid dirName'
+            return None
+
+        dirName = self.get_real_dir(dirName)
+        err = self._do_deldir(dirName) 
+
+    def _do_deldir(self, dirName):
         err = self.op_dir(dirName, 'deldir') 
+        return err
 
     def help_deldir(self):
         print 'deldir on server'
@@ -545,9 +604,20 @@ class MyCmd(cmd.Cmd):
     #change dir on server
     #return success if dir exists
     def do_chdir(self, dirName):
+        if len(dirName) == 0:
+            print 'invalid dirName'
+            return None
+
+        dirName = self.get_real_dir(dirName)
         err = self.op_dir(dirName, 'chdir') 
         if err == 0:
             self.currentDir = dirName
+
+    def do_pwd(self, arg):
+        self.print_green(self.currentDir)
+
+    def help_pwd(self):
+        print 'show current dir'
 
     def help_chkdir(self):
         print 'chdir on server'
@@ -597,9 +667,6 @@ if __name__ == '__main__':
     elif command == 'deldir':
         parser.add_option('-d', '--dir', help='dest dir on server')
 
-    elif command == 'chdir':
-        parser.add_option('-d', '--dir', help='dest dir on server')
-
     elif command == 'inter':
         mod = 'inter'
 
@@ -624,11 +691,11 @@ if __name__ == '__main__':
     if command == 'put':
         srcFile = options.file
         destDir = options.dir
-        cli.do_put('%s %s' % (srcFile, destDir))
+        cli._do_put(srcFile, destDir)
 
     elif command == 'list':
         destDir = options.dir
-        cli.do_list(destDir)
+        cli._do_list(destDir)
 
     elif command == 'get':
         srcFile = options.file
@@ -640,15 +707,11 @@ if __name__ == '__main__':
 
     elif command == 'mkdir':
         destDir = options.dir
-        cli.do_mkdir(destDir)
+        cli._do_mkdir(destDir)
 
     elif command == 'deldir':
         destDir = options.dir
-        cli.do_deldir(destDir)
-
-    elif command == 'chdir':
-        destDir = options.dir
-        cli.do_chdir(destDir)
+        cli._do_deldir(destDir)
 
     elif command == 'inter':
         cli.cmdloop('welcome To MyFtp!!!');

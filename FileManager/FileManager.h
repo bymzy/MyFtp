@@ -65,11 +65,15 @@ int TryCreateFile(char *fileName, char *md5, uint64_t size, char **buf, uint32_t
 int WriteFile(char *fileName, char *md5, uint64_t offset, char *data, uint32_t dataLen, char **buf, uint32_t *bufLen);
 int WriteFileEnd(char *fileName, char *md5, char **buf, uint32_t *sendLen);
 int DeleteFile(char *fileName, char **buf, uint32_t *sendLen);
-int AddIndex(const char *fileName, const char *md5);
 int MakeDir(char *dirName, char **buf, uint32_t *sendLen);
 int DeleteDir(char *dirName, char **buf, uint32_t *sendLen);
 int ChangeDir(char *dirName, char **buf, uint32_t *sendLen);
 
+int AddFileIndex(const char *fileName, const char *md5);
+int EraseFileIndex(const char *fileName);
+
+int AddDirIndex(const char *fileName);
+int EraseDirIndex(const char *fileName);
 
 char * addStr(const char *left, const char *right);
 char *GetRealPath(const char *fileName);
