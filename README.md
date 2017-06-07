@@ -9,9 +9,9 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - put files to server side (supported!)
 - del files on server side (supported!)
 - list files on server side (supported!)
-- mkdir on server side (not finished yet)
-- deldir on server side (not finished yet)
-- chdir on server side (not finished yet, this is useful in interactive mode!) 
+- mkdir on server side (supported!)
+- deldir on server side (supported!)
+- chdir on server side (supported! this is useful in interactive mode!) 
 
 
 ## TODO
@@ -20,6 +20,7 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - DONE daemon
 - DONE server ip, port can be assigned from cmdline
 - DONE server work dir can be assigned from cmdline
+- del multi file failed
 
 ## Dependencies
 - openssl-devel
