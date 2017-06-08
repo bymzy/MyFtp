@@ -10,6 +10,7 @@ enum Err {
     ERR_get_file_md5, 
     ERR_md5_not_match,
     ERR_file_uploading,
+    ERR_dir_not_empty,
 };
 
 #endif

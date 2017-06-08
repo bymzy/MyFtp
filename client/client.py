@@ -18,6 +18,7 @@ class MyParser(OptionParser):
 
 class MyCmd(cmd.Cmd):
     currentDir = '/'
+    lastDir = '/'
 
     def __init__(self):
         cmd.Cmd.__init__(self)
@@ -105,7 +106,7 @@ class MyCmd(cmd.Cmd):
         print 'quit this program!!!'
 
     ## list
-    def do_list(self, dirName):
+    def do_ls(self, dirName):
         if len(dirName) > 0 and dirName[-1] != '/':
             dirName = '%s/' % dirName
         
@@ -151,7 +152,7 @@ class MyCmd(cmd.Cmd):
             self.print_red('failed: ' + errStr)
         return err
 
-    def help_list(self):
+    def help_ls(self):
         print 'list files on current dir, eg: list /root'
 
     ## lock
@@ -520,6 +521,7 @@ class MyCmd(cmd.Cmd):
         err = 0
         
         for fileName in argList:
+            print 'del file', fileName
             err = self.try_lock(fileName)
             if err != 0:
                 return 1
@@ -586,7 +588,7 @@ class MyCmd(cmd.Cmd):
 
     #del dir on server
     #return success if dir exists and dir empty
-    def do_deldir(self, dirName):
+    def do_rmdir(self, dirName):
         if len(dirName) == 0:
             print 'invalid dirName'
             return None
@@ -598,19 +600,28 @@ class MyCmd(cmd.Cmd):
         err = self.op_dir(dirName, 'deldir') 
         return err
 
-    def help_deldir(self):
+    def help_rmdir(self):
         print 'deldir on server'
         
     #change dir on server
     #return success if dir exists
-    def do_chdir(self, dirName):
+    def do_cd(self, dirName):
         if len(dirName) == 0:
-            print 'invalid dirName'
+            dirName = '/'
+        elif dirName == '..':
+            if self.currentDir == '/':
+                return None
+            dirName = os.path.dirname(self.currentDir[:-1])
+        elif dirName == '-':
+            dirName = self.lastDir
+
+        if dirName == self.currentDir:
             return None
 
         dirName = self.get_real_dir(dirName)
         err = self.op_dir(dirName, 'chdir') 
         if err == 0:
+            self.lastDir = self.currentDir
             self.currentDir = dirName
 
     def do_pwd(self, arg):
@@ -619,7 +630,7 @@ class MyCmd(cmd.Cmd):
     def help_pwd(self):
         print 'show current dir'
 
-    def help_chkdir(self):
+    def help_cd(self):
         print 'chdir on server'
 
     def help_help(self):

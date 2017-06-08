@@ -1147,6 +1147,7 @@ int DeleteDir(char *dirName, char **buf, uint32_t *sendLen)
     char *realDir = GetRealPath(dirName);
     uint32_t totalLen = 0;
     char *writeIndex = NULL;
+    struct Dir *dir = NULL;
 
     Lock();
     do {
@@ -1158,22 +1159,30 @@ int DeleteDir(char *dirName, char **buf, uint32_t *sendLen)
             break;
         }
 
-        /* delete dir index */
-        err = EraseDirIndex(dirName);
-        assert(err == 0);
-
-        /* try mkdir */
-        struct stat st;
-        err = stat(realDir, &st);
-        if (err != 0) {
-            /* dir is not created by client */
+        dir = (struct Dir*) node->value;
+        if (dir->fileTable->size > 0) {
+            err = ERR_dir_not_empty;
+            errStr = "dir not empty, cant not delete";
             break;
         }
 
-        /* delete filesystem dir */
-        err = rmdir(realDir);
-        assert(err == 0);
 
+        /* check dir exist */
+        struct stat st;
+        err = stat(realDir, &st);
+        if (err == 0) {
+            /* delete filesystem dir */
+            err = rmdir(realDir);
+            if (err != 0) {
+                err = errno;
+                errStr = strerror(err);
+                break;
+            }
+        }
+
+        /* delete dir index */
+        err = EraseDirIndex(dirName);
+        assert(err == 0);
     } while(0);
     UnLock();
 
