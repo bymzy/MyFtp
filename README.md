@@ -22,7 +22,10 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - DONE server ip, port can be assigned from cmdline
 - DONE server work dir can be assigned from cmdline
 - DONE del multi file failed
-- Server logfile redirection
+- DONE Server logfile redirection
+
+## Example
+![]()
 
 ## Dependencies
 - openssl-devel

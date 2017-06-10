@@ -209,7 +209,7 @@ class MyCmd(cmd.Cmd):
         return err
 
     def calc_md5(self, fileName):
-        fp = open(fileName, 'r')
+        fp = open(fileName, 'rb')
         m = hashlib.md5()
         while 1:
             chunk = fp.read(4096)
@@ -637,7 +637,7 @@ class MyCmd(cmd.Cmd):
         print 'show help info'
 
 def command_list():
-    print_green('avaliable list: put, list , get , del, mkdir, deldir, chdir ')
+    print_green('avaliable list: put, ls , get , del, mkdir, rmdir, cd, inter')
 
 def print_blue(msg):
     print '\033[1;34m%s \033[0m' % msg

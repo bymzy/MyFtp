@@ -294,13 +294,22 @@ static int _remove(struct AVLTable *table, char *key)
     struct AVLNode *hot = NULL;
     struct AVLNode **pfound = NULL;
     struct AVLNode *tree = table->root;
+    struct AVLNode *succ = NULL;
+    int isRoot = 0;
 
     pfound = _search_in(&tree, &hot, key);
     if (*pfound == NULL) {
         return 1;
     }
 
-    _remove_at(pfound, &hot);
+    if (*pfound == table->root) {
+        isRoot = 1;
+    }
+
+    succ = _remove_at(pfound, &hot);
+    if (isRoot) {
+        table->root = succ;
+    }
 
     /* rotate */
     for (;hot; hot = hot->parent) {

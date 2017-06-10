@@ -153,6 +153,7 @@ void Usage()
                --ip         -i  REQUIRED server listen ip \n\
                --port       -p  OPTIONAL listen port \n\
                --log_file   -l  OPTIONAL log file \n\
+               --daemon     -d  Make Daemon \n\
                \n\
                DESC: \n\
                Simple ftp program made by mzy !\n\
@@ -171,6 +172,7 @@ int main(int argc, char *argv[])
     int c = -1;
     int fd = -1;
     int mustSetCount = 0;
+    int needDaemon = 0;
 
     /* parse cmd line */
     struct option long_options[] = {
@@ -178,11 +180,12 @@ int main(int argc, char *argv[])
         {"ip", required_argument, 0, 0},
         {"port", required_argument, 0, 0},
         {"log_file", required_argument, 0, 0},
+        {"daemon", no_argument, 0, 0},
         {0,0,0,0}
     };
 
     while (1) {
-        c = getopt_long(argc, argv, ":w:i:p:l:", long_options, NULL);
+        c = getopt_long(argc, argv, ":w:i:p:l:d", long_options, NULL);
         if (-1 == c) {
             break;
         }
@@ -201,6 +204,9 @@ int main(int argc, char *argv[])
                 break;
             case 'l':
                 LOGFILE = optarg;
+                break;
+            case 'd':
+                needDaemon = 1;
                 break;
             default:
                 err = EINVAL;
@@ -239,6 +245,15 @@ int main(int argc, char *argv[])
         goto ERROR;
     }
 
+    if (needDaemon) {
+        err = daemon(1, 1);
+        if (err != 0) {
+            err = errno;
+            printf("make daemon failed, errstr: %s \n", strerror(err));
+            goto ERROR;
+        }
+    }
+
     /* try open log file */
     fd = open(LOGFILE, O_RDWR | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -247,19 +262,15 @@ int main(int argc, char *argv[])
         goto ERROR;
     }
 
-    /*
-    err = daemon(0, 0);
-    if (err != 0) {
-        err = errno;
-        printf("make daemon failed, errstr: %s \n", strerror(err));
-        goto ERROR;
-    }
-
+    printf("redirect stdout, stderr to file %s \n", LOGFILE);
     close(1);
     close(2);
-    dup(fd);
-    dup(fd);
-    */
+    ret = dup(fd);
+    assert(1 == ret);
+    ret = dup(fd);
+    assert(2 == ret);
+
+    printf("try to init file manager!!!\n");
 
     err = InitFileManager(g_repo);
     if (err != 0) {
@@ -329,7 +340,7 @@ int main(int argc, char *argv[])
 FailListen:
     FinitThread();
 FailInitFileManager:
-
+    FinitFileManager();
 ERROR:
     return err;
 }

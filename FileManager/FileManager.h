@@ -50,6 +50,7 @@ struct FileManager {
 
 
 int InitFileManager(const char *repo);
+int FinitFileManager();
 int SearchDir(const char *dir, struct Dir *parent);
 int TryLock(struct FileLock *lock, int lockType, char **errStr);
 int TryUnLock(struct FileLock *lock, int lockType, char **errStr);
