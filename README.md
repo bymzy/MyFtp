@@ -24,16 +24,23 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - DONE del multi file failed
 - DONE Server logfile redirection
 
+## Dependencies
+- openssl-devel
+- libcrypto
+
+## Build
+- mkdir build
+- cd build
+- cmake ..
+- make
+
 ## Example
 - client example
 ![](https://github.com/bymzy/MyFtp/blob/master/imags/help.png)
 
 - server example
-![](https://github.com/bymzy/MyFtp/blob/master/imags/server.png)
 
-## Dependencies
-- openssl-devel
-- libcrypto
+![](https://github.com/bymzy/MyFtp/blob/master/imags/server.png)
 
 ## Something more
 My job needs to copy file from CenOS to windows, i found i stupid user XFTP to transfer file, so i make this program and write some other scripts to copy automatic.
