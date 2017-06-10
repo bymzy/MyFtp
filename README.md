@@ -25,7 +25,11 @@ Sometimes it is annoying to scp files from one machine to another if you use scp
 - DONE Server logfile redirection
 
 ## Example
+- client example
 ![](https://github.com/bymzy/MyFtp/blob/master/imags/help.png)
+
+- server example
+![](https://github.com/bymzy/MyFtp/blob/master/imags/server.png)
 
 ## Dependencies
 - openssl-devel
