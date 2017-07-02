@@ -54,7 +54,7 @@ class MyCmd(cmd.Cmd):
         data = self._recv(4)
         val, = struct.unpack('!I', data)
         return val
-    
+
     def recv_64int(self):
         data = self._recv(8)
         val, = struct.unpack('!Q', data);
@@ -92,7 +92,7 @@ class MyCmd(cmd.Cmd):
     def get_real_dir(self, dirName):
         if dirName[-1] != '/':
             dirName = '%s/' % dirName
-        
+
         if dirName[0] != '/':
             dirName = ''.join((self.currentDir, dirName))
 
@@ -301,8 +301,8 @@ class MyCmd(cmd.Cmd):
         cmd = 'read'
         totalLen = 4 + len(cmd)
         totalLen += 4 + len(fileName)
-        totalLen += 8  
-        totalLen += 4  
+        totalLen += 8
+        totalLen += 4
 
         msg = self.pack_int(totalLen)
         msg += self.pack_str(cmd)
@@ -314,38 +314,45 @@ class MyCmd(cmd.Cmd):
 
     ## download file
     def do_get(self, arg):
-        err = self.try_lock(arg)
+        fileName = arg
+        if fileName is None or len(fileName) == 0:
+            return
+
+        if fileName[0] != '/':
+            fileName = self.currentDir + fileName
+
+        err = self.try_lock(fileName)
         if err != 0:
             return
 
         # ask for file md5 
         md5 = ''
-        err, md5 = self.get_md5(arg)
+        err, md5 = self.get_md5(fileName)
         if err != 0:
             return
 
         print 'file md5 %s' % md5
-        err = self.start_with_offset(arg, md5)
+        err = self.start_with_offset(fileName, md5)
         if err != 0:
             print 'get file failed!'
             return
-        
+
         # check md5
-        print 'base name :%s ' % os.path.basename(arg)
-        temp_file_name = self.calc_temp_file_name(os.path.basename(arg), md5) 
+        print 'base name :%s ' % os.path.basename(fileName)
+        temp_file_name = self.calc_temp_file_name(os.path.basename(fileName), md5)
         localMd5 = self.calc_md5(temp_file_name)
 
         print localMd5, md5
 
         if localMd5 == md5:
-            print 'download file %s success!' % arg
-            os.rename(temp_file_name, os.path.basename(arg))
+            print 'download file %s success!' % fileName
+            os.rename(temp_file_name, os.path.basename(fileName))
         else:
-            print 'download file %s failed!' % arg
+            print 'download file %s failed!' % fileName
             os.unlink(temp_file_name)
 
-        self.try_unlock(arg)
-        return 
+        self.try_unlock(fileName)
+        return
 
     def help_get(self):
         print 'download file from server, eg: get /root/file'
@@ -594,14 +601,14 @@ class MyCmd(cmd.Cmd):
             return None
 
         dirName = self.get_real_dir(dirName)
-        err = self._do_deldir(dirName) 
+        err = self._do_rmdir(dirName) 
 
-    def _do_deldir(self, dirName):
-        err = self.op_dir(dirName, 'deldir') 
+    def _do_rmdir(self, dirName):
+        err = self.op_dir(dirName, 'rmdir') 
         return err
 
     def help_rmdir(self):
-        print 'deldir on server'
+        print 'rmdir on server'
         
     #change dir on server
     #return success if dir exists
@@ -637,7 +644,7 @@ class MyCmd(cmd.Cmd):
         print 'show help info'
 
 def command_list():
-    print_green('avaliable list: put, ls , get , del, mkdir, rmdir, cd, inter')
+    print_green('avaliable list: put, list , get , del, mkdir, rmdir, inter')
 
 def print_blue(msg):
     print '\033[1;34m%s \033[0m' % msg
@@ -661,10 +668,10 @@ if __name__ == '__main__':
 
     if command == 'put':
         parser.add_option('-f', '--file', help='src file try put to server')
-        parser.add_option('-d', '--dir', help='dest dir on server')
+        parser.add_option('-d', '--dir', help='dest dir on server', default='/')
 
     elif command == 'list':
-        parser.add_option('-d', '--dir', help='dest dir on server')
+        parser.add_option('-d', '--dir', help='dest dir on server', default='/')
 
     elif command == 'get':
         parser.add_option('-f', '--file', help='dest dir on server')
@@ -673,10 +680,10 @@ if __name__ == '__main__':
         parser.add_option('-f', '--file', help='dest dir on server, --file file1,file2,file3')
 
     elif command == 'mkdir':
-        parser.add_option('-d', '--dir', help='dest dir on server')
+        parser.add_option('-d', '--dir', help='dest dir on server', default='/')
 
-    elif command == 'deldir':
-        parser.add_option('-d', '--dir', help='dest dir on server')
+    elif command == 'rmdir':
+        parser.add_option('-d', '--dir', help='dest dir on server', default='/')
 
     elif command == 'inter':
         mod = 'inter'
@@ -706,6 +713,8 @@ if __name__ == '__main__':
 
     elif command == 'list':
         destDir = options.dir
+        if destDir ==  '' or destDir == None:
+            destDir =  '/'
         cli._do_list(destDir)
 
     elif command == 'get':
@@ -720,9 +729,9 @@ if __name__ == '__main__':
         destDir = options.dir
         cli._do_mkdir(destDir)
 
-    elif command == 'deldir':
+    elif command == 'rmdir':
         destDir = options.dir
-        cli._do_deldir(destDir)
+        cli._do_rmdir(destDir)
 
     elif command == 'inter':
         cli.cmdloop('welcome To MyFtp!!!');

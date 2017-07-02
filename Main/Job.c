@@ -368,7 +368,7 @@ void DoOpDir(int fd, char *data)
 
     if (strcmp(opCode, "mkdir") == 0) {
         MakeDir(dirName, &buf, &sendLen);
-    } else if (strcmp(opCode, "deldir") == 0) {
+    } else if (strcmp(opCode, "rmdir") == 0) {
         DeleteDir(dirName, &buf, &sendLen);
     } else if (strcmp(opCode, "chdir") == 0) {
         ChangeDir(dirName, &buf, &sendLen);
